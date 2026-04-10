@@ -1,6 +1,7 @@
 //const API_URL = "http://192.168.35.158:8000"; //집
 //const API_URL = "http://10.20.102.78:8000"; //학교
-const API_URL = "http://172.20.10.2:8000"; //휴대폰
+//const API_URL = "http://172.20.10.2:8000"; //휴대폰
+const API_URL = "http://fashion2cation.co.kr:8000"; //구매한 도메인
 
 // DOM Elements
 const viewHome = document.getElementById('view-home');
