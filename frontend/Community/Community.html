@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StyleScape Community</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&family=Noto+Serif+KR:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="Community_styles.css">
+</head>
+<body>
+
+  <div class="cursor" id="cursor"></div>
+  <div class="cursor-follower" id="cursorFollower"></div>
+
+  <nav class="top-nav">
+    <div class="nav-left">
+      <a href="../index.html" class="nav-logo">StyleScape</a>
+    </div>
+    <div class="nav-center">
+        <div class="search-bar">
+            <input type="text" id="feedSearchInput" placeholder="관심 있는 스타일이나 키워드를 검색해보세요 (예: 오버핏, 스트릿)">
+        </div>
+    </div>
+    <div class="nav-right">
+      <a href="#" id="navLoginBtn" class="btn-login">로그인</a>
+    </div>
+  </nav>
+
+  <div class="community-layout" id="communityLayout">
+    
+    <aside class="left-sidebar">
+        <ul class="sidebar-menu">
+            <li class="menu-title">메인</li>
+            <li><a href="#" id="menu-home" class="active"><span>⌂</span> 홈</a></li>
+            <li><a href="#" id="menu-profile"><span>☺</span> 프로필</a></li>
+            
+            <li class="menu-title" style="margin-top: 30px;">피드 필터</li>
+            <li><a href="#" id="side-filter-latest"><span>✦</span> 최신 스타일</a></li>
+            <li><a href="#" id="side-filter-popular"><span>⟡</span> 인기 트렌드</a></li>
+            <li><a href="#" id="side-filter-nearby"><span>⚑</span> 내 주변 지역</a></li>
+            
+            <li class="menu-title" style="margin-top: 30px;">토픽</li>
+            <li><a href="#" class="topic-tag">#불당동</a></li>
+            <li><a href="#" class="topic-tag">#신부동</a></li>
+            <li><a href="#" class="topic-tag">#미니멀룩</a></li>
+        </ul>
+    </aside>
+
+    <main class="center-feed">
+      
+        <div id="view-home">
+            <div class="feed-header">
+                <h1 style="font-family: 'Playfair Display', serif; font-size: 24px; color: var(--warm-black);">Live Community</h1>
+                <div class="feed-filters">
+                <button id="head-sort-latest" class="active">최신순</button>
+                <button id="head-sort-popular">인기순</button>
+                </div>
+            </div>
+
+        <div id="feed-container"></div>
+        <div id="loading-indicator" class="loading-indicator">
+          <span>✦</span> Loading more styles...
+        </div>
+      </div>
+
+      <div id="view-profile" style="display: none;">
+        <div class="profile-header">
+          <div class="profile-avatar">
+            <img src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80" alt="Profile">
+          </div>
+          <div class="profile-info">
+            <div class="profile-username">
+              <span id="profile-nickname-display">Style_Creator</span> 
+              <span class="settings-icon">⚙</span>
+            </div>
+            <div class="profile-name">패션 디렉터</div>
+            <ul class="profile-stats">
+              <li>게시물 <strong id="profile-post-count">0</strong></li>
+              <li>팔로워 <strong>264</strong></li>
+              <li>팔로우 <strong>361</strong></li>
+            </ul>
+            <div class="profile-bio">🔗 blog.stylescape.com/creator</div>
+            <div class="profile-actions">
+              <button class="btn-profile-action">프로필 편집</button>
+              <button class="btn-profile-action">보관된 스토리 보기</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-highlights">
+          <div class="highlight-item">
+            <div class="highlight-circle"></div><span>OOTD</span>
+          </div>
+          <div class="highlight-item">
+            <div class="highlight-circle"></div><span>Cafe</span>
+          </div>
+          <div class="highlight-item">
+            <div class="highlight-circle" style="display:flex; align-items:center; justify-content:center; font-size: 24px; color: var(--rust);">+</div><span>신규</span>
+          </div>
+        </div>
+
+        <div class="profile-tabs">
+          <div class="tab active"><span>▤</span> 게시물</div>
+          <div class="tab"><span>⚑</span> 저장됨</div>
+          <div class="tab"><span>☺</span> 태그됨</div>
+        </div>
+
+        <div class="profile-grid" id="profile-grid-container"></div>
+      </div>
+    </main>
+
+    <aside class="right-sidebar">
+      <div class="widget">
+        <h3 class="widget-title">인기 커뮤니티 지역</h3>
+        <ul class="trending-list">
+          <li>
+            <div class="trend-info"><span class="trend-rank">1</span><div class="trend-details"><h4>천안 · 불당동</h4><p>멤버 12,430명</p></div></div>
+            <button class="btn-join">가입</button>
+          </li>
+          <li>
+            <div class="trend-info"><span class="trend-rank">2</span><div class="trend-details"><h4>서울 · 홍대</h4><p>멤버 45,120명</p></div></div>
+            <button class="btn-join">가입</button>
+          </li>
+          <li>
+            <div class="trend-info"><span class="trend-rank">3</span><div class="trend-details"><h4>천안 · 신부동</h4><p>멤버 8,920명</p></div></div>
+            <button class="btn-join">가입</button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="widget ai-widget">
+        <h3 class="widget-title">AI Style Insight</h3>
+        <p style="font-size: 12px; color: rgba(26,22,18,0.6); line-height: 1.5;">현재 천안 지역은 <strong>'오버핏 자켓'</strong>과 <strong>'무채색 톤'</strong>이 급상승 중입니다. 스타일 스케이프 AI가 분석한 결과입니다.</p>
+      </div>
+
+      <div class="widget write-widget" style="border-color: var(--rust); background: var(--off-white);">
+        <h3 class="widget-title" style="color: var(--rust);">새로운 스타일 공유</h3>
+        <p style="font-size: 12px; color: rgba(26,22,18,0.6); margin-bottom: 16px; line-height: 1.5;">오늘 당신의 OOTD나 패션 인사이트를 커뮤니티에 나누어보세요.</p>
+        <button id="openPostModalBtn" class="btn-write">글쓰기 ✦</button>
+      </div>
+    </aside>
+  </div>
+
+  <div class="modal-overlay" id="authModal">
+    <div class="auth-modal-content">
+      <span class="modal-close" id="closeAuthModal">&times;</span>
+      <h3 id="authTitle" style="font-family: 'Playfair Display'; font-size: 28px; margin-bottom: 10px; color: var(--warm-black);">Login</h3>
+      <p id="authDesc" style="font-size: 12px; color: #666; margin-bottom: 24px;">StyleScape 커뮤니티에 합류하세요.</p>
+      
+      <form class="auth-form" id="authForm">
+        <input type="text" id="authNickname" placeholder="닉네임" style="display: none;">
+        <input type="email" id="authEmail" placeholder="이메일" required>
+        <input type="password" id="authPassword" placeholder="비밀번호" required>
+        <button type="submit" id="authSubmitBtn">로그인 ✦</button>
+      </form>
+      
+      <div class="auth-toggle">
+        <span id="authToggleText">계정이 없으신가요? </span>
+        <a href="#" id="authToggleBtn">회원가입</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="postModal">
+    <div class="auth-modal-content" style="max-width: 500px;">
+      <span class="modal-close" id="closePostModal">&times;</span>
+      <h3 style="font-family: 'Playfair Display'; font-size: 28px; margin-bottom: 10px; color: var(--warm-black);">New Post</h3>
+      <p style="font-size: 12px; color: #666; margin-bottom: 24px;">텍스트만 올려도 좋고, 사진과 함께면 더 좋습니다.</p>
+      
+      <form class="auth-form" id="postForm">
+        <textarea id="postContent" rows="4" placeholder="어떤 스타일인가요? 패션에 대한 이야기를 자유롭게 적어주세요." required></textarea>
+        
+        <div class="form-group" style="position: relative;">
+          <input type="text" id="locationSearchInput" placeholder="🔍 지역 검색 (예: 불당동, 홍대)" autocomplete="off" required style="width: 100%;">
+          
+          <input type="hidden" id="postLocation" required>
+          
+          <ul id="locationDropdown" class="location-dropdown"></ul>
+        </div>
+        <input type="text" id="postTags" placeholder="태그 (쉼표로 구분, 예: 스트릿,오버핏)">
+        
+        <div style="border: 1px dashed rgba(0,0,0,0.2); padding: 16px; border-radius: 4px; text-align: center;">
+          <label for="postFile" style="font-size: 12px; color: var(--rust); cursor: pointer; font-weight: 600;">+ 이미지 첨부 (선택사항)</label>
+          <input type="file" id="postFile" accept="image/png, image/jpeg" style="display: none;">
+          <div id="fileNameDisplay" style="font-size: 11px; margin-top: 8px; color: #666;">선택된 파일 없음</div>
+
+          <div id="imagePreviewContainer" style="display: none; margin-top: 15px; position: relative;">
+            <img id="imagePreview" src="" alt="미리보기" style="width: 100%; max-height: 250px; object-fit: cover; border-radius: 4px; border: 1px solid #eee;">
+            <button type="button" id="removeImageBtn" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px; line-height: 1;">&times;</button>
+          </div>
+        </div>
+
+        <button type="submit">커뮤니티에 게시 ✦</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="commentModal">
+    <div class="auth-modal-content" style="max-width: 500px; height: 60vh; display: flex; flex-direction: column; padding: 30px;">
+      <span class="modal-close" id="closeCommentModal">&times;</span>
+      <h3 style="font-family: 'Playfair Display'; font-size: 24px; margin-bottom: 20px; color: var(--warm-black);">Comments</h3>
+      
+      <div id="commentList" style="flex: 1; overflow-y: auto; margin-bottom: 20px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 10px;">
+        </div>
+      
+      <form id="commentForm" style="display: flex; gap: 10px;">
+        <input type="hidden" id="currentCommentPostId">
+        <input type="text" id="commentInput" placeholder="당신의 무드를 남겨주세요..." required style="flex: 1; padding: 14px; border-radius: 4px; border: 1px solid var(--border-color); font-family: 'DM Sans';">
+        <button type="submit" style="background: var(--rust); color: white; border: none; padding: 0 20px; border-radius: 4px; cursor: none; font-weight: 600;">게시</button>
+      </form>
+    </div>
+  </div>
+
+    <nav class="mobile-nav">
+        <button onclick="document.getElementById('menu-home').click()"><span>⌂</span>홈</button>
+        <button onclick="document.getElementById('side-filter-popular').click()"><span>⟡</span>인기</button>
+        <button onclick="document.getElementById('openPostModalBtn').click()" class="post-btn">+</button>
+        <button onclick="document.getElementById('side-filter-nearby').click()"><span>⚑</span>주변</button>
+        <button onclick="document.getElementById('menu-profile').click()"><span>☺</span>나</button>
+    </nav>
+
+  <script src="Community_script.js"></script>
+</body>
+</html>

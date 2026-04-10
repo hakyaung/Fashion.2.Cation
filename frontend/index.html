@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StyleScape — 지역별 패션 생태계</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&family=Noto+Serif+KR:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-follower" id="cursorFollower"></div>
+
+<nav>
+  <a href="#" class="nav-logo">StyleScape</a>
+  <ul class="nav-links">
+    <li><a href="#explore">탐색</a></li>
+    <li><a href="#regions">지역</a></li>
+    <li><a href="#ai">AI 분석</a></li>
+    <li><a href="Community/Community.html">커뮤니티</a></li>
+    <li><a href="#subscribe">구독</a></li>
+    <li><a href="#" id="navLoginBtn">로그인</a></li>
+  </ul>
+</nav>
+
+<section class="hero" id="hero">
+  <div class="hero-left">
+    <div class="hero-tag">지역별 패션 생태계 데이터 플랫폼</div>
+    <h1 class="hero-title">당신의<br>도시가<br><em>입는 것</em></h1>
+    <p class="hero-desc">홍대의 스트릿 룩과 천안의 캠퍼스 룩은 어떻게 다를까. AI가 수집하고 분석한 도시의 스타일 지형도.</p>
+    <div class="hero-cta">
+      <a href="#explore" class="btn-primary">스타일 탐색</a>
+      <a href="#regions" class="btn-secondary">지역 보기</a>
+    </div>
+  </div>
+
+  <div class="hero-right">
+    <div class="hero-image-collage">
+      <div class="collage-block" id="hero-block-0" style="top:80px;right:40px;width:55%;height:42%;">
+        <div style="width:100%;height:100%;background:linear-gradient(135deg,#2D2926,#4A3728);position:relative;">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.06);font-family:'Playfair Display',serif;font-size:40px;font-style:italic;">Loading...</div>
+        </div>
+      </div>
+      
+      <div class="collage-block" id="hero-block-1" style="top:45%;left:20px;width:42%;height:35%;">
+        <div style="width:100%;height:100%;background:linear-gradient(135deg,#6B8CAE,#4A6B8E);position:relative;">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.08);font-family:'Playfair Display',serif;font-size:32px;font-style:italic;">Loading...</div>
+        </div>
+      </div>
+      
+      <div class="collage-block" id="hero-block-2" style="bottom:40px;right:20px;width:36%;height:28%;">
+        <div style="width:100%;height:100%;background:linear-gradient(135deg,#C4542A,#A03518);position:relative;">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.1);font-family:'Playfair Display',serif;font-size:28px;font-style:italic;">Loading...</div>
+        </div>
+      </div>
+
+      <div class="style-tag rust style-tag-1" id="hero-tag-0">#StyleScape</div>
+      <div class="style-tag gold style-tag-2" id="hero-tag-1">#Trending</div>
+      <div class="style-tag style-tag-3" id="hero-tag-2">#Fashion</div>
+    </div>
+  </div>
+</section>
+
+<div class="ticker">
+  <div class="ticker-track">
+    <span class="ticker-item"><span>✦</span>불당동 트렌딩</span>
+    <span class="ticker-item"><span>✦</span>신부동 빈티지</span>
+    <span class="ticker-item"><span>✦</span>두정동 캐주얼</span>
+    <span class="ticker-item"><span>✦</span>홍대 스트릿</span>
+    <span class="ticker-item"><span>✦</span>성수 빈티지</span>
+    <span class="ticker-item"><span>✦</span>불당동 트렌딩</span>
+    <span class="ticker-item"><span>✦</span>신부동 빈티지</span>
+    <span class="ticker-item"><span>✦</span>두정동 캐주얼</span>
+    <span class="ticker-item"><span>✦</span>홍대 스트릿</span>
+    <span class="ticker-item"><span>✦</span>성수 빈티지</span>
+  </div>
+</div>
+
+<div class="stats-band" id="dynamic-stats">
+  <div class="stat-item">
+    <div class="stat-number" id="stat-total-posts">0</div>
+    <div class="stat-label">스타일 업로드</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-number" id="stat-unique-locations">0</div>
+    <div class="stat-label">지역 · 도시</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-number">3.2M</div>
+    <div class="stat-label">스타일 태그</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-number">96%</div>
+    <div class="stat-label">AI 태그 정확도</div>
+  </div>
+</div>
+
+<section class="section-feed" id="explore">
+  <div class="section-header">
+    <div>
+      <div class="section-eyebrow">오늘의 피드</div>
+      <h2 class="section-title">지금 이 순간,<br><em>거리의 스타일</em></h2>
+    </div>
+    <a href="#" class="view-all">전체 보기 →</a>
+  </div>
+
+  <div class="feed-grid" id="dynamic-feed">
+    </div>
+</section>
+
+<section class="section-regions" id="regions">
+  <div class="section-eyebrow">지역 스타일 지형도</div>
+  <h2 class="section-title">AI가 그린<br><em>도시의 패션 지도</em></h2>
+
+  <div class="regions-grid" id="dynamic-regions">
+     </div>
+</section>
+
+<section class="section-ai" id="ai">
+  <div class="ai-visual">
+    <div class="ai-card-main animate-float">
+      <div class="ai-card-content">
+        <div class="ai-scan-line"></div>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;">
+          <div style="font-size:32px;opacity:0.2;">👗</div>
+          <div style="font-size:10px;letter-spacing:2px;color:rgba(255,255,255,0.3);text-transform:uppercase;">분석 중</div>
+        </div>
+        <div class="ai-scan-text">AI Vision Analyzing...</div>
+      </div>
+    </div>
+    <div class="ai-bubble bubble-1">
+      <div class="ai-bubble-label">자동 태그 생성</div>
+      <div class="ai-bubble-tags">
+        <span class="ai-tag active">#오버핏</span>
+        <span class="ai-tag active">#다크무드</span>
+        <span class="ai-tag">#빈티지</span>
+        <span class="ai-tag active">#스트릿</span>
+      </div>
+    </div>
+    <div class="ai-bubble bubble-2">
+      <div class="ai-bubble-label">지역 유사도</div>
+      <div class="ai-bubble-tags">
+        <span class="ai-tag active">#천안불당 72%</span>
+        <span class="ai-tag">#홍대 18%</span>
+      </div>
+    </div>
+    <div class="ai-bubble bubble-3">
+      <div class="ai-bubble-label">스타일 무드</div>
+      <div class="ai-bubble-tags">
+        <span class="ai-tag active">#언더그라운드</span>
+        <span class="ai-tag">#아방가르드</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai-content">
+    <div class="section-eyebrow">AI 스타일 분석 엔진</div>
+    <h2 class="section-title">사진 한 장으로<br><em>스타일을 읽다</em></h2>
+    <div class="ai-feature-list">
+      <div class="ai-feature">
+        <div class="ai-feature-icon">🤖</div>
+        <div class="ai-feature-text">
+          <h4>자동 태그 생성 (CLIP)</h4>
+          <p>업로드된 이미지를 멀티모달 AI가 분석해 무드, 스타일 카테고리, 아이템을 자동으로 태깅합니다.</p>
+        </div>
+      </div>
+      <div class="ai-feature">
+        <div class="ai-feature-icon">🗺️</div>
+        <div class="ai-feature-text">
+          <h4>지역별 군집화 분석</h4>
+          <p>수집된 스타일 벡터를 K-means 알고리즘으로 분석해 지역별 패션 지형도를 실시간 시각화합니다.</p>
+        </div>
+      </div>
+      <div class="ai-feature">
+        <div class="ai-feature-icon">🎯</div>
+        <div class="ai-feature-text">
+          <h4>맞춤형 코디 추천</h4>
+          <p>선호 지역, 좋아요 기록, 업로드 스타일을 벡터 유사도 검색으로 분석해 취향 기반 추천을 제공합니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section-community" id="community-preview">
+  <div class="community-left">
+    <div class="section-eyebrow">커뮤니티 이벤트</div>
+    <h2 class="section-title">같은 도시,<br><em>같은 감성</em></h2>
+    <p class="community-desc">지역 기반 커뮤니티에서 나와 같은 무드를 공유하는 스타일리스트를 만나세요. 매주 지역별 테마 이벤트가 열립니다.</p>
+  </div>
+  <div class="community-events">
+    <div class="event-item">
+      <div class="event-date">04.12</div>
+      <div class="event-name">신부동 스트릿 포토워크</div>
+      <div class="event-region">천안 · 신부동</div>
+    </div>
+    <div class="event-item">
+      <div class="event-date">04.15</div>
+      <div class="event-name">불당 카페거리 스타일링</div>
+      <div class="event-region">천안 · 불당동</div>
+    </div>
+    <div class="event-item">
+      <div class="event-date">04.19</div>
+      <div class="event-name">캠퍼스 룩 챌린지</div>
+      <div class="event-region">천안 · 안서동</div>
+    </div>
+    <div class="event-item">
+      <div class="event-date">04.22</div>
+      <div class="event-name">두정동 나이트 룩업</div>
+      <div class="event-region">천안 · 두정동</div>
+    </div>
+    <div class="event-item">
+      <div class="event-date">04.26</div>
+      <div class="event-name">천안 스타일 데이터 리포트 공개</div>
+      <div class="event-region">천안 전체</div>
+    </div>
+  </div>
+</section>
+
+<section class="section-upload" id="upload">
+  <div class="upload-container">
+    <div class="section-eyebrow">Share Your Style</div>
+    <h2 class="section-title">당신의 <em>무드</em>를<br>공유해주세요</h2>
+    <p class="upload-desc">천안 패션 생태계에 새로운 영감을 더해보세요.</p>
+
+    <div id="uploadLoggedOut" style="text-align: center; padding: 40px 0;">
+      <p style="margin-bottom: 20px; color: var(--warm-black); font-weight: 500;">사진을 업로드하려면 로그인이 필요합니다.</p>
+      <button id="triggerLoginBtn" class="btn-primary" style="cursor: pointer;">로그인 후 업로드 ✦</button>
+    </div>
+
+    <form class="upload-form-inline" id="uploadForm" style="display: none;">
+      <div class="form-group">
+        <label for="uploadFile">스타일 이미지 <span>*</span></label>
+        <input type="file" id="uploadFile" accept="image/png, image/jpeg" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="uploadLocation">지역 <span>*</span></label>
+        <select id="uploadLocation" required>
+          <option value="">어디서 찍으셨나요?</option>
+          <option value="1">서울 홍대 (1)</option>
+          <option value="2">천안 불당동 (2)</option>
+          <option value="3">천안 신부동 (3)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="uploadContent">설명 <span>*</span></label>
+        <textarea id="uploadContent" rows="3" placeholder="어떤 스타일인가요? (예: 주말 카페룩)" required></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="uploadTags">태그</label>
+        <input type="text" id="uploadTags" placeholder="쉼표로 구분 (예: 스트릿,오버핏)">
+      </div>
+
+      <button type="submit" class="btn-submit">스타일 업로드 ✦</button>
+    </form>
+  </div>
+</section>
+
+<section class="section-subscribe" id="subscribe">
+  <div class="subscribe-eyebrow">위클리 스타일 리포트</div>
+  <h2 class="subscribe-title">매주 화요일,<br><em>도시의 무드</em>를<br>받아보세요</h2>
+  <p class="subscribe-desc">AI가 분석한 이번 주 지역별 스타일 트렌드를 메일로 전달합니다.</p>
+  <div class="subscribe-form">
+    <input type="email" placeholder="이메일 주소를 입력하세요">
+    <button type="button">구독하기</button>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-brand">
+    <span class="footer-logo">StyleScape</span>
+    <p class="footer-tagline">지역별 패션 생태계를 수집하고 분석하는 AI 스타일 데이터 플랫폼</p>
+  </div>
+  <div class="footer-col">
+    <h5>탐색</h5>
+    <ul class="footer-links">
+      <li><a href="#">피드</a></li>
+      <li><a href="#">지역별 보기</a></li>
+      <li><a href="#">트렌딩</a></li>
+      <li><a href="#">나의 스타일</a></li>
+    </ul>
+  </div>
+  <div class="footer-col">
+    <h5>데이터</h5>
+    <ul class="footer-links">
+      <li><a href="#">스타일 리포트</a></li>
+      <li><a href="#">지역 분석</a></li>
+      <li><a href="#">트렌드 차트</a></li>
+      <li><a href="#">B2B 인사이트</a></li>
+    </ul>
+  </div>
+  <div class="footer-col">
+    <h5>회사</h5>
+    <ul class="footer-links">
+      <li><a href="#">소개</a></li>
+      <li><a href="#">개인정보처리방침</a></li>
+      <li><a href="#">이용약관</a></li>
+      <li><a href="#">문의하기</a></li>
+    </ul>
+  </div>
+</footer>
+<div class="footer-bottom">
+  <p>© 2026 StyleScape. All rights reserved.</p>
+  <p>AI-Powered Fashion Ecosystem Platform</p>
+</div>
+<div class="modal-overlay" id="authModal">
+  <div class="upload-modal" style="max-width: 400px; padding: 40px;">
+    <span class="modal-close" id="closeAuthModal">&times;</span>
+    <h3 id="authTitle" style="font-family: 'Playfair Display'; font-size: 28px; margin-bottom: 10px; color: var(--warm-black);">Login</h3>
+    <p id="authDesc" style="font-size: 12px; color: #666; margin-bottom: 24px;">StyleScape에 오신 것을 환영합니다.</p>
+    
+    <form class="upload-form" id="authForm" style="display: flex; flex-direction: column; gap: 16px;">
+      <input type="text" id="authNickname" placeholder="닉네임" style="display: none; padding: 14px; border: 1px solid #ddd; font-family: 'DM Sans';">
+      
+      <input type="email" id="authEmail" placeholder="이메일" required style="padding: 14px; border: 1px solid #ddd; font-family: 'DM Sans';">
+      <input type="password" id="authPassword" placeholder="비밀번호" required style="padding: 14px; border: 1px solid #ddd; font-family: 'DM Sans';">
+      <button type="submit" id="authSubmitBtn" style="background: var(--rust); color: white; border: none; padding: 16px; margin-top: 10px; cursor: pointer; letter-spacing: 2px;">로그인 ✦</button>
+    </form>
+    
+    <div style="margin-top: 20px; text-align: center; font-size: 12px;">
+      <span id="authToggleText">계정이 없으신가요? </span>
+      <a href="#" id="authToggleBtn" style="color: var(--rust); font-weight: bold; text-decoration: none;">회원가입</a>
+    </div>
+  </div>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
