@@ -1,5 +1,7 @@
 // 전역 설정
-const API_URL = "http://127.0.0.1:8000";
+//const API_URL = "http://127.0.0.1:8000";
+const API_URL = "http://fashion2cation.co.kr"; //구매한 도메인
+
 const observerOptions = { threshold: 0.15, rootMargin: '0px 0px -50px 0px' };
 
 // ==========================================
