@@ -375,6 +375,20 @@ body {
     font-size: 24px !important;
     flex: 0 0 48px !important;
   }
+
+  /* 1. 모달을 바닥에 붙이지 않고 화면 중앙으로 띄웁니다 */
+  #postModal.modal-overlay {
+    align-items: center !important; 
+    padding: 15px !important;
+  }
+  
+  /* 2. New Post 창을 전체적으로 위로 올립니다 */
+  #postModal .auth-modal-content {
+    border-radius: 20px !important; /* 위로 떴으니 아래쪽 모서리도 둥글게 */
+    margin-bottom: 90px !important; /* 하단 네비게이션 및 빨간 버튼 높이만큼 완전히 위로 밀어냄 */
+    max-height: 75vh !important; /* 화면 위아래로 잘리지 않게 높이 제한 */
+    padding-bottom: 30px !important;
+  }
 }
 
 @media (min-width: 769px) {
