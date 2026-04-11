@@ -212,6 +212,31 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="editModal">
+    <div class="auth-modal-content" style="max-width: 500px;">
+      <span class="modal-close" id="closeEditModal">&times;</span>
+      <h3 style="font-family: 'Playfair Display'; font-size: 28px; margin-bottom: 20px; color: var(--warm-black);">Edit Post</h3>
+      
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+        <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--off-white); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--rust);">
+          <span id="editAuthorInitials">U</span>
+        </div>
+        <strong id="editAuthorName" style="font-size: 14px; color: var(--warm-black);">Author Name</strong>
+      </div>
+
+      <div id="editImageContainer" style="display: none; margin-bottom: 16px;">
+        <img id="editImagePreview" src="" style="width: 100%; max-height: 250px; object-fit: cover; border-radius: 8px; border: 1px solid #eee;">
+      </div>
+
+      <form class="auth-form" id="editForm">
+        <input type="hidden" id="editPostId">
+        <textarea id="editContent" rows="4" required style="font-size: 14px;"></textarea>
+        <input type="text" id="editTags" placeholder="태그 (쉼표로 구분, 예: 스트릿,오버핏)" style="font-size: 14px;">
+        <button type="submit" style="margin-top: 10px;">수정 완료 ✦</button>
+      </form>
+    </div>
+  </div>
+
     <nav class="mobile-nav">
         <button onclick="document.getElementById('menu-home').click()"><span>⌂</span>홈</button>
         <button onclick="document.getElementById('side-filter-popular').click()"><span>⟡</span>인기</button>

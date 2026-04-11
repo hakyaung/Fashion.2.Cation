@@ -45,3 +45,54 @@ app.mount("/static", StaticFiles(directory=UPLOAD_DIR), name="static")
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
 # (기존 @app.get("/")와 @app.get("/health")는 중복 및 충돌 방지를 위해 제거했습니다.)
+
+from fastapi.responses import HTMLResponse
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from app.db.session import get_db
+from app.models.models import Post
+
+# ==========================================
+# 💡 게시물 공유 전용 (Open Graph 메타태그 생성기)
+# ==========================================
+@app.get("/share/{post_id}", response_class=HTMLResponse)
+def share_redirect(post_id: str, db: Session = Depends(get_db)):
+    # 1. DB에서 공유된 게시물 찾기
+    post = db.query(Post).filter(Post.id == post_id).first()
+    
+    # 게시물이 삭제됐거나 없으면 그냥 기본 메인 페이지로 보냅니다.
+    if not post:
+        return HTMLResponse("<script>window.location.href = '/';</script>")
+
+    # 2. 내용과 이미지 다듬기
+    short_content = post.content[:40] + "..." if len(post.content) > 40 else post.content
+    # 이미지가 없으면 서비스 로고나 기본 이미지가 뜨도록 주소를 넣어주세요.
+    image_url = post.image_url if post.image_url else "https://fashion2cation.co.kr/기본로고.jpg" 
+
+    # 3. 로봇에게 보여줄 '오픈 그래프(OG)' HTML 껍데기 만들기
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta property="og:title" content="StyleScape Community">
+        <meta property="og:description" content="[StyleScape] {short_content}">
+        <meta property="og:image" content="{image_url}">
+        <meta property="og:url" content="http://fashion2cation.co.kr/share/{post_id}">
+        
+        <meta name="twitter:card" content="summary_large_image">
+        
+        <title>StyleScape - 당신의 도시가 입는 것</title>
+        
+        <script>
+            window.location.href = "/Community.html?post={post_id}"; 
+            // 주의: Community.html의 경로가 다르다면 본인 프로젝트에 맞게 경로를 수정해 주세요. (예: /index.html)
+        </script>
+    </head>
+    <body>
+        <p>StyleScape로 이동 중입니다... ✦</p>
+    </body>
+    </html>
+    """
+    
+    return HTMLResponse(content=html_content)

@@ -11,6 +11,9 @@ from app.models.models import Post, PostTag, User, Location, Like, Comment
 from app.services.ai_gateway import send_to_ai_worker
 from app.api.deps import get_current_user
 
+from pydantic import BaseModel
+from fastapi import HTTPException
+
 router = APIRouter()
 UPLOAD_DIR = "uploads"
 
@@ -211,3 +214,59 @@ def get_comments(post_id: str, db: Session = Depends(get_db)):
         "content": c.content,
         "created_at": c.created_at.isoformat()
     } for c in comments]
+
+
+# 💡 수정된 그릇: 이제 태그 데이터도 선택적으로 받을 수 있습니다.
+class PostUpdate(BaseModel):
+    content: str
+    user_tags: Optional[str] = None
+
+# ==========================================
+# 🗑️ 1. 게시물 삭제 API (DELETE)
+# ==========================================
+# 💡 핵심 수정: post_id를 int에서 str로 변경!
+@router.delete("/{post_id}")
+def delete_post(post_id: str, db: Session = Depends(get_db)):
+    # 1. DB에서 해당 ID의 게시물 찾기
+    post = db.query(Post).filter(Post.id == post_id).first()
+    
+    if not post:
+        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    
+    # 2. DB에서 삭제 후 저장
+    db.delete(post)
+    db.commit()
+    
+    return {"status": "success", "message": "게시물이 삭제되었습니다."}
+
+# ==========================================
+# ✍️ 2. 게시물 수정 API (PUT)
+# ==========================================
+# 💡 핵심 수정: post_id를 int에서 str로 변경!
+@router.put("/{post_id}")
+def update_post(post_id: str, post_data: PostUpdate, db: Session = Depends(get_db)):
+    # 1. DB에서 해당 게시물 찾기
+    post = db.query(Post).filter(Post.id == post_id).first()
+    
+    if not post:
+        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    
+    # 2. 내용 업데이트
+    post.content = post_data.content
+    
+    # 3. 태그 업데이트 로직 (새로운 태그가 들어왔다면)
+    if post_data.user_tags is not None:
+        # 기존 태그를 모조리 지우고
+        db.query(PostTag).filter(PostTag.post_id == post.id).delete()
+        
+        # 새로 입력받은 태그를 추가합니다
+        if post_data.user_tags.strip():
+            tags = [t.strip() for t in post_data.user_tags.split(",") if t.strip()]
+            for tag in tags:
+                new_tag = PostTag(post_id=post.id, tag_name=tag, is_ai_generated=False)
+                db.add(new_tag)
+                
+    # 4. 저장!
+    db.commit()
+    
+    return {"status": "success", "message": "게시물 및 태그가 수정되었습니다."}

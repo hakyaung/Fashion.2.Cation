@@ -1,6 +1,19 @@
 // 전역 설정
 //const API_URL = "http://127.0.0.1:8000";
-const API_URL = "http://fashion2cation.co.kr"; //구매한 도메인
+let API_URL;
+const currentHost = window.location.hostname;
+
+if (
+  currentHost === 'localhost' || 
+  currentHost === '127.0.0.1' || 
+  currentHost.startsWith('192.168.') || 
+  currentHost.startsWith('10.') || 
+  currentHost.startsWith('172.')
+) {
+  API_URL = `http://${currentHost}:8000`; // 로컬 연결
+} else {    
+  API_URL = "http://fashion2cation.co.kr"; // 우분투(AWS) 연결
+}
 
 const observerOptions = { threshold: 0.15, rootMargin: '0px 0px -50px 0px' };
 

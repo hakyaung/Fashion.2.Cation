@@ -356,23 +356,18 @@ body {
 
   .post-actions {
     display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    justify-content: flex-start !important;
-    gap: 0 !important;
-    padding-top: 10px !important;
-    overflow: hidden !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    padding-top: 15px !important;
   }
   .action-btn {
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    gap: 4px !important;
-    font-size: 12px !important;
-    padding: 6px 0 6px 0 !important;
-    white-space: nowrap !important;
-    flex: 0 0 auto !important;
-    margin-right: 14px !important;
+    flex: 1; /* 4개의 버튼이 동일한 가로 비율을 가집니다 */
+    justify-content: center !important;
+    font-size: 11px !important; /* 4개가 들어가야 하므로 폰트 살짝 축소 */
+    padding: 8px 2px !important;
+    background: #f9f9f9 !important;
+    border-radius: 8px !important;
+    white-space: nowrap !important; /* 텍스트 줄바꿈 방지 */
   }
 
   .post-tags-container { margin: 8px 0 !important; gap: 4px !important; }

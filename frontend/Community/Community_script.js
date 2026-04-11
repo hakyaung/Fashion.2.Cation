@@ -1,7 +1,30 @@
 //const API_URL = "http://192.168.35.158:8000"; //집
 //const API_URL = "http://10.20.102.78:8000"; //학교
 //const API_URL = "http://172.20.10.2:8000"; //휴대폰
-const API_URL = "http://fashion2cation.co.kr"; //구매한 도메인
+//const API_URL = "http://fashion2cation.co.kr"; //구매한 도메인
+
+// ==========================================
+// 💡 스마트 API URL 자동 설정 로직
+// ==========================================
+let API_URL;
+const currentHost = window.location.hostname;
+
+// 1. 로컬(노트북)이거나 내부망(핸드폰 와이파이 192.168~, 10.~, 172.~) 접속인지 확인
+if (
+  currentHost === 'localhost' || 
+  currentHost === '127.0.0.1' || 
+  currentHost.startsWith('192.168.') || 
+  currentHost.startsWith('10.') || 
+  currentHost.startsWith('172.')
+) {
+  // 노트북이든 핸드폰이든, 현재 접속한 그 주소의 8000번 포트로 연결!
+  API_URL = `http://${currentHost}:8000`; 
+} 
+// 2. 그 외 (진짜 외부에서 도메인으로 접속했을 때)
+else {
+  // 실제 AWS 서버 주소
+  API_URL = "http://fashion2cation.co.kr"; 
+}
 
 // DOM Elements
 const viewHome = document.getElementById('view-home');
@@ -202,7 +225,14 @@ function renderCommunityPosts(posts) {
         <button class="action-btn btn-comment" data-id="${post.id}" onclick="openComments('${post.id}')">
           <span>💬</span> 댓글 <b class="comment-cnt">${post.comment_count}</b>
         </button>
-        <button class="action-btn"><span>⟡</span> ${aiBadge}</button>
+        
+        <button class="action-btn btn-share" onclick="sharePost('${post.id}')">
+          <span>⎋</span> 공유
+        </button>
+
+        <button class="action-btn" style="cursor: default;">
+          <span>⟡</span> ${aiBadge}
+        </button>
       </div>
     `;
     container.appendChild(card);
@@ -879,11 +909,88 @@ function togglePostMenu(postId) {
   }
 }
 
+// ==========================================
+// 💡 18. 게시물 수정 로직 (UI 모달 적용 버전)
+// ==========================================
 function editPost(postId) {
-  // 수정 기능은 이후 글쓰기 모달창(postModal)을 재활용하는 방식으로 고도화할 수 있습니다.
-  alert("현재 게시물 수정 기능은 준비 중입니다!");
+  // 1. 열려있는 점 3개 메뉴 드롭다운 닫기
+  const menu = document.getElementById(`post-menu-${postId}`);
+  if (menu) menu.classList.remove('active');
+
+  // 2. 화면에 있는 게시물 카드(DOM)를 찾아 기존 데이터를 싹 긁어옵니다.
+  const btn = document.querySelector(`.action-btn.btn-like[data-id="${postId}"]`);
+  if (!btn) return;
+  const card = btn.closest('.post-card');
+
+  const author = card.querySelector('.post-author').innerText.replace('By. ', '');
+  const content = card.querySelector('.post-title').innerText;
+  const imgEl = card.querySelector('.post-img');
+  const tagEls = card.querySelectorAll('.post-hashtag');
+
+  // 3. 긁어온 데이터를 수정 모달(Edit Modal) 안에 예쁘게 채워 넣습니다.
+  document.getElementById('editPostId').value = postId;
+  document.getElementById('editAuthorName').innerText = author;
+  document.getElementById('editAuthorInitials').innerText = author.charAt(0).toUpperCase();
+  document.getElementById('editContent').value = content;
+  
+  // 태그들을 추출해서 쉼표로 연결
+  const tags = Array.from(tagEls).map(el => el.innerText.replace('#', '').trim()).join(', ');
+  document.getElementById('editTags').value = tags;
+
+  // 이미지가 있으면 보여주고, 없으면 숨깁니다.
+  const editImageContainer = document.getElementById('editImageContainer');
+  if (imgEl) {
+    document.getElementById('editImagePreview').src = imgEl.src;
+    editImageContainer.style.display = 'block';
+  } else {
+    editImageContainer.style.display = 'none';
+  }
+
+  // 4. 모달 띄우기!
+  document.getElementById('editModal').classList.add('active');
 }
 
+// 모달 닫기 이벤트
+document.getElementById('closeEditModal').addEventListener('click', () => {
+  document.getElementById('editModal').classList.remove('active');
+});
+
+// 수정 완료 버튼 눌렀을 때 백엔드로 전송
+document.getElementById('editForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const postId = document.getElementById('editPostId').value;
+  const newContent = document.getElementById('editContent').value;
+  const newTags = document.getElementById('editTags').value;
+  const token = localStorage.getItem('stylescape_token');
+
+  try {
+    const res = await fetch(`${API_URL}/api/v1/posts/${postId}`, {
+      method: 'PUT',
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      // 💡 백엔드로 본문(content)과 태그(user_tags)를 같이 보냅니다!
+      body: JSON.stringify({ content: newContent, user_tags: newTags }) 
+    });
+
+    if (res.ok) {
+      alert("게시물이 성공적으로 수정되었습니다. ✦");
+      document.getElementById('editModal').classList.remove('active');
+      resetFeed();
+      loadCommunityFeed();
+    } else {
+      alert("수정 권한이 없거나 오류가 발생했습니다.");
+    }
+  } catch (err) {
+    console.error("게시물 수정 오류", err);
+    alert("서버 통신 오류.");
+  }
+});
+
+// ==========================================
+// 🗑️ 게시물 삭제 로직
+// ==========================================
 async function deletePost(postId) {
   const token = localStorage.getItem('stylescape_token');
   if (!token) {
@@ -892,27 +999,77 @@ async function deletePost(postId) {
     return;
   }
 
-  if (!confirm("정말로 이 게시물을 삭제하시겠습니까?")) {
+  // 1. 브라우저 기본 경고창을 띄워 삭제 여부를 한 번 더 묻습니다.
+  const isConfirmed = confirm("정말로 이 게시물을 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.");
+  
+  // 사용자가 '취소'를 누르면 여기서 함수를 종료합니다.
+  if (!isConfirmed) {
     return;
   }
 
   try {
+    // 2. 백엔드로 DELETE 요청 보내기 (방금 만든 파이썬 API로 전달)
     const res = await fetch(`${API_URL}/api/v1/posts/${postId}`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 
+        'Authorization': `Bearer ${token}`
+      }
     });
 
     if (res.ok) {
-      alert("게시물이 성공적으로 삭제되었습니다.");
-      resetFeed(); // 피드를 비우고
-      loadCommunityFeed(); // 다시 불러옵니다 (삭제된 것 반영)
+      alert("게시물이 성공적으로 삭제되었습니다. ✦");
+      
+      // 혹시 열려있는 드롭다운 메뉴가 있다면 닫아줍니다.
+      document.querySelectorAll('.post-dropdown').forEach(menu => {
+        menu.classList.remove('active');
+      });
+
+      resetFeed(); // 피드 초기화
+      loadCommunityFeed(); // 변경된 내용으로 피드 다시 불러오기
     } else {
-      // 본인이 쓴 글이 아니거나 서버 에러일 때
+      // 본인이 작성한 글이 아니거나 서버 에러일 경우
       alert("삭제 권한이 없거나 오류가 발생했습니다.");
     }
   } catch (err) {
     console.error("게시물 삭제 오류", err);
     alert("서버 통신 오류.");
+  }
+}
+
+// ==========================================
+// 💡 19. 게시물 공유 로직 (링크 미리보기 최적화 버전)
+// ==========================================
+async function sharePost(postId) {
+  const btn = document.querySelector(`.action-btn.btn-like[data-id="${postId}"]`);
+  if (!btn) return;
+  const card = btn.closest('.post-card');
+  const content = card.querySelector('.post-title').innerText;
+  
+  // 공유될 주소 생성
+  const shareUrl = `${API_URL}/share/${postId}`;
+  const shortText = content.length > 40 ? content.substring(0, 40) + '...' : content;
+
+  // 💡 파일을 억지로 첨부하지 않고, 텍스트와 URL만 깔끔하게 넘깁니다.
+  // 이렇게 해야 카카오톡 등에서 '클릭 가능한 링크 카드'를 만들어줍니다.
+  const shareData = {
+    title: 'StyleScape Community',
+    text: `[StyleScape] 당신의 도시가 입는 것\n\n${shortText}`,
+    url: shareUrl
+  };
+
+  if (navigator.share) {
+    try {
+      await navigator.share(shareData);
+    } catch (err) {
+      console.log('공유가 취소되었거나 지원하지 않는 동작입니다.', err);
+    }
+  } else {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      alert("게시물 링크가 클립보드에 복사되었습니다! ✦\n원하는 곳에 붙여넣기 하세요.");
+    } catch (err) {
+      alert("링크 복사에 실패했습니다.");
+    }
   }
 }
 
