@@ -1050,7 +1050,7 @@ async function sharePost(postId) {
 
   const shareData = {
     title: 'StyleScape Community',
-    text: `[StyleScape] 당신의 도시가 입는 것\n\n${shortText}`,
+    text: `[Fashion.2.Cation] 당신의 도시가 입는 것\n\n${shortText}`,
     url: shareUrl
   };
 

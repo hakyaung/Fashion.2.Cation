@@ -20,12 +20,17 @@ app = FastAPI(
 # 2. CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://fashion2cation.co.kr",
+        "https://fashion2cation.co.kr",  # 💡 이 줄이 반드시 추가되어야 합니다!
+        "*" # (만약 "*" 로 되어 있다면 이 문제는 아닙니다)
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # 3. 폴더 설정
 UPLOAD_DIR = "uploads"
 if not os.path.exists(UPLOAD_DIR):
