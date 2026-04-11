@@ -23,7 +23,7 @@ if (
 // 2. 그 외 (진짜 외부에서 도메인으로 접속했을 때)
 else {
   // 실제 AWS 서버 주소
-  API_URL = "http://fashion2cation.co.kr"; 
+  API_URL = "https://fashion2cation.co.kr";
 }
 
 // DOM Elements

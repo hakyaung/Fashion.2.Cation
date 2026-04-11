@@ -12,7 +12,7 @@ if (
 ) {
   API_URL = `http://${currentHost}:8000`; // 로컬 연결
 } else {    
-  API_URL = "http://fashion2cation.co.kr"; // 우분투(AWS) 연결
+  API_URL = "https://fashion2cation.co.kr"; // 우분투(AWS) 연결
 }
 
 const observerOptions = { threshold: 0.15, rootMargin: '0px 0px -50px 0px' };
