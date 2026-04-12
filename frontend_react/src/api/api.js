@@ -22,6 +22,9 @@ export const API_URL = getApiUrl();
 // ==========================================
 export function getToken() {
   return localStorage.getItem('stylescape_token');
+  if (!token) return null;
+  // 따옴표 제거 및 앞뒤 공백 제거 (모바일 사파리 에러 방지 핵심)
+  return token.replace(/['"]+/g, '').trim();
 }
 
 export function getCurrentUserId() {
@@ -102,18 +105,30 @@ export async function postComment(postId, content) {
 // 게시물 작성 API
 // ==========================================
 export async function uploadPost({ locationId, content, tags, file }) {
-  const token = getToken();
+  // 1. 토큰 세척: 모바일에서 따옴표가 포함되어 fetch가 거절되는 현상 방지
+  let token = getToken();
+  if (token) token = token.replace(/['"]+/g, '').trim();
+
   const formData = new FormData();
   formData.append('location_id', locationId);
   formData.append('content', content);
+  
   if (tags) formData.append('user_tags', tags);
-  if (file) formData.append('file', file);
+
+  // 2. 파일 이름 세척: 모바일 특유의 파일명 패턴(image:123 등)으로 인한 에러 방지
+  if (file) {
+    const extension = file.name.split('.').pop() || 'jpg';
+    const safeName = `upload_${Date.now()}.${extension}`;
+    // 세 번째 인자로 안전한 이름을 넘겨주면 "The string did not match..." 에러가 사라집니다.
+    formData.append('file', file, safeName);
+  }
 
   const res = await fetch(`${API_URL}/api/v1/posts/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
-    body: formData,
+    body: formData, // FormData를 보낼 땐 Content-Type을 수동으로 넣지 마세요!
   });
+
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.detail || '업로드 실패');
