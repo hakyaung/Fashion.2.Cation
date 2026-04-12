@@ -18,40 +18,19 @@ function getApiUrl() {
 export const API_URL = getApiUrl();
 
 // ==========================================
-// 인증 헬퍼
+// 인증 헬퍼 (원상 복구: 멀쩡하던 피드 에러 해결)
 // ==========================================
 export function getToken() {
-  const rawToken = localStorage.getItem('stylescape_token');
-  if (!rawToken) return null;
-  return rawToken.replace(/['"]+/g, '').trim();
+  return localStorage.getItem('stylescape_token');
 }
 
 export function getCurrentUserId() {
   const token = getToken(); 
   if (!token) return null;
-  
   try {
-    const base64Url = token.split('.')[1];
-    if (!base64Url) return null;
-
-    // 1. Base64URL 기호를 표준 Base64 기호로 교체
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-
-    // 2. 부족한 패딩(=) 강제 채우기 (4의 배수 맞추기)
-    const pad = base64.length % 4;
-    const paddedBase64 = pad ? base64 + '='.repeat(4 - pad) : base64;
-
-    // 3. 이제 안전하게 디코딩
-    const jsonPayload = decodeURIComponent(
-      atob(paddedBase64)
-        .split('')
-        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-
-    return JSON.parse(jsonPayload).sub;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.sub;
   } catch (e) {
-    console.error("ID 추출 중 에러:", e);
     return null;
   }
 }
@@ -120,42 +99,28 @@ export async function postComment(postId, content) {
 }
 
 // ==========================================
-// 게시물 작성 API
+// 게시물 작성 API (💡 모바일 사파리 에러 해결)
 // ==========================================
 export async function uploadPost({ locationId, content, tags, file }) {
-  // 1. 토큰 강제 세척 (영어, 숫자, 기호 외의 모든 숨겨진 문자 제거)
-  let token = getToken();
-  if (token) {
-    token = String(token).replace(/[^A-Za-z0-9-_=./+]/g, '').trim();
-  }
-
+  const token = getToken();
   const formData = new FormData();
+  formData.append('location_id', locationId);
+  formData.append('content', content);
+  if (tags) formData.append('user_tags', tags);
   
-  // 2. 값들을 명시적으로 문자열로 변환하여 안전하게 추가
-  formData.append('location_id', String(locationId));
-  formData.append('content', String(content));
-  if (tags) formData.append('user_tags', String(tags));
-
-  // 3. 파일 이름 및 객체 세척
-  if (file && file instanceof File) {
-    const extension = file.name.split('.').pop() || 'jpg';
-    // 모바일 특유의 파일명(image:123 등)을 무시하고 안전한 영어 이름으로 고정
-    const safeFileName = `post_${Date.now()}.${extension}`;
+  if (file) {
+    // 사파리 브라우저가 파일명에 포함된 한글이나 특수문자를 헤더에 담지 못해 터지는 에러 방지
+    const ext = file.name ? file.name.split('.').pop() : 'jpg';
+    const safeFileName = `post_${Date.now()}.${ext}`;
     formData.append('file', file, safeFileName);
   }
 
-  // 4. URL 공백 및 중복 슬래시 제거
-  const targetUrl = `${API_URL}/api/v1/posts/upload`.replace(/([^:]\/)\/+/g, "$1").trim();
-
-  const res = await fetch(targetUrl, {
+  const res = await fetch(`${API_URL}/api/v1/posts/upload`, {
     method: 'POST',
-    headers: { 
-      // 💡 헤더 문자열을 한 번 더 trim() 하여 안전하게 전송
-      'Authorization': `Bearer ${token}`.trim()
-    },
-    body: formData, // 주의: Content-Type은 브라우저가 자동 설정하게 둡니다.
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
   });
-
+  
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.detail || '업로드 실패');
@@ -271,16 +236,24 @@ export async function toggleFollowApi(targetUserId) {
   return res.json();
 }
 
+// ==========================================
+// 프로필 이미지 업로드 API (💡 모바일 사파리 에러 해결 적용)
+// ==========================================
 export async function uploadProfileImageApi(file) {
   const token = getToken();
   const formData = new FormData();
-  formData.append('file', file);
+  
+  if (file) {
+    // 게시글 업로드와 동일하게 프로필 사진 이름도 안전하게 변경합니다.
+    const ext = file.name ? file.name.split('.').pop() : 'jpg';
+    const safeFileName = `profile_${Date.now()}.${ext}`;
+    formData.append('file', file, safeFileName);
+  }
 
   const res = await fetch(`${API_URL}/api/v1/users/me/profile-image`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
-      // 💡 주의: FormData를 보낼 때는 'Content-Type'을 수동으로 설정하지 않습니다!
     },
     body: formData,
   });
