@@ -1,0 +1,16 @@
+# 1. 변경된 모든 파일을 장바구니에 담기
+git add .
+
+# 2. 이번 업데이트가 무엇인지 이름표 붙이기 (포장)
+git commit -m "🌐 API 주소를 도메인(fashion2cation.co.kr)으로 최종 변경"
+
+# 3. GitHub로 발사!
+git push origin main
+
+
+# 1. 프로젝트 폴더로 이동 (이미 폴더 안이라면 생략 가능)
+cd ~/Fashion.2.Cation
+
+# 2. GitHub에 올라온 따끈따끈한 코드 가져오기
+git pull origin main
+
