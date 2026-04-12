@@ -29,10 +29,29 @@ export function getToken() {
 export function getCurrentUserId() {
   const token = getToken(); 
   if (!token) return null;
+  
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.sub;
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return null;
+
+    // 1. Base64URL 기호를 표준 Base64 기호로 교체
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+
+    // 2. 부족한 패딩(=) 강제 채우기 (4의 배수 맞추기)
+    const pad = base64.length % 4;
+    const paddedBase64 = pad ? base64 + '='.repeat(4 - pad) : base64;
+
+    // 3. 이제 안전하게 디코딩
+    const jsonPayload = decodeURIComponent(
+      atob(paddedBase64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+
+    return JSON.parse(jsonPayload).sub;
   } catch (e) {
+    console.error("ID 추출 중 에러:", e);
     return null;
   }
 }
@@ -104,24 +123,37 @@ export async function postComment(postId, content) {
 // 게시물 작성 API
 // ==========================================
 export async function uploadPost({ locationId, content, tags, file }) {
-  const token = getToken(); // 위에서 고친 getToken 덕분에 이미 깨끗한 토큰입니다.
-  const formData = new FormData();
-  
-  formData.append('location_id', locationId);
-  formData.append('content', content);
-  if (tags) formData.append('user_tags', tags);
-
-  if (file) {
-    // 💡 모바일 파일명 에러 방지용 '이름 세척'만 유지합니다.
-    const ext = file.name.split('.').pop() || 'jpg';
-    const safeName = `upload_${Date.now()}.${ext}`;
-    formData.append('file', file, safeName);
+  // 1. 토큰 강제 세척 (영어, 숫자, 기호 외의 모든 숨겨진 문자 제거)
+  let token = getToken();
+  if (token) {
+    token = String(token).replace(/[^A-Za-z0-9-_=./+]/g, '').trim();
   }
 
-  const res = await fetch(`${API_URL}/api/v1/posts/upload`, {
+  const formData = new FormData();
+  
+  // 2. 값들을 명시적으로 문자열로 변환하여 안전하게 추가
+  formData.append('location_id', String(locationId));
+  formData.append('content', String(content));
+  if (tags) formData.append('user_tags', String(tags));
+
+  // 3. 파일 이름 및 객체 세척
+  if (file && file instanceof File) {
+    const extension = file.name.split('.').pop() || 'jpg';
+    // 모바일 특유의 파일명(image:123 등)을 무시하고 안전한 영어 이름으로 고정
+    const safeFileName = `post_${Date.now()}.${extension}`;
+    formData.append('file', file, safeFileName);
+  }
+
+  // 4. URL 공백 및 중복 슬래시 제거
+  const targetUrl = `${API_URL}/api/v1/posts/upload`.replace(/([^:]\/)\/+/g, "$1").trim();
+
+  const res = await fetch(targetUrl, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
+    headers: { 
+      // 💡 헤더 문자열을 한 번 더 trim() 하여 안전하게 전송
+      'Authorization': `Bearer ${token}`.trim()
+    },
+    body: formData, // 주의: Content-Type은 브라우저가 자동 설정하게 둡니다.
   });
 
   if (!res.ok) {
