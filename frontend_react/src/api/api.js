@@ -23,30 +23,35 @@ export const API_URL = getApiUrl();
 export function getToken() {
   const rawToken = localStorage.getItem('stylescape_token');
   if (!rawToken) return null;
-  // 앞뒤 따옴표, 줄바꿈, 공백을 싹 다 제거합니다. (가장 중요)
-  return rawToken.replace(/['"\r\n\s]+/g, '').trim();
+  return rawToken.replace(/['"]+/g, '').trim();
 }
 
 export function getCurrentUserId() {
-  const token = getToken();
-  if (!token || token.split('.').length !== 3) return null;
+  const token = getToken(); 
+  if (!token) return null;
   
   try {
     const base64Url = token.split('.')[1];
-    // Base64URL을 표준 Base64로 변환하고 패딩(=)을 강제로 맞춥니다.
+    if (!base64Url) return null;
+
+    // 1. Base64URL 기호를 표준 Base64 기호로 교체
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+
+    // 2. 부족한 패딩(=) 강제 채우기 (4의 배수 맞추기)
     const pad = base64.length % 4;
     const paddedBase64 = pad ? base64 + '='.repeat(4 - pad) : base64;
-    
-    // 이 방식이 사파리에서 'pattern' 에러를 막는 가장 안전한 디코딩입니다.
+
+    // 3. 이제 안전하게 디코딩
     const jsonPayload = decodeURIComponent(
-      atob(paddedBase64).split('').map(c => 
-        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-      ).join('')
+      atob(paddedBase64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
     );
+
     return JSON.parse(jsonPayload).sub;
   } catch (e) {
-    console.error("ID 추출 실패:", e);
+    console.error("ID 추출 중 에러:", e);
     return null;
   }
 }
@@ -118,29 +123,37 @@ export async function postComment(postId, content) {
 // 게시물 작성 API
 // ==========================================
 export async function uploadPost({ locationId, content, tags, file }) {
-  const token = getToken();
+  // 1. 토큰 강제 세척 (영어, 숫자, 기호 외의 모든 숨겨진 문자 제거)
+  let token = getToken();
+  if (token) {
+    token = String(token).replace(/[^A-Za-z0-9-_=./+]/g, '').trim();
+  }
+
   const formData = new FormData();
   
-  // 모든 값을 문자열로 강제 변환하여 안전하게 추가
+  // 2. 값들을 명시적으로 문자열로 변환하여 안전하게 추가
   formData.append('location_id', String(locationId));
   formData.append('content', String(content));
   if (tags) formData.append('user_tags', String(tags));
 
+  // 3. 파일 이름 및 객체 세척
   if (file && file instanceof File) {
-    // 💡 핵심: 모바일의 이상한 파일명을 무시하고 '영어+숫자' 이름으로 강제 변경
-    // 사파리가 가장 좋아하는 깔끔한 패턴으로 바꿔줍니다.
-    const ext = file.name.split('.').pop() || 'jpg';
-    const safeFileName = `upload_${Date.now()}.${ext}`;
+    const extension = file.name.split('.').pop() || 'jpg';
+    // 모바일 특유의 파일명(image:123 등)을 무시하고 안전한 영어 이름으로 고정
+    const safeFileName = `post_${Date.now()}.${extension}`;
     formData.append('file', file, safeFileName);
   }
 
-  const res = await fetch(`${API_URL}/api/v1/posts/upload`, {
+  // 4. URL 공백 및 중복 슬래시 제거
+  const targetUrl = `${API_URL}/api/v1/posts/upload`.replace(/([^:]\/)\/+/g, "$1").trim();
+
+  const res = await fetch(targetUrl, {
     method: 'POST',
     headers: { 
-      // 토큰 앞뒤 공백 한 번 더 제거
-      'Authorization': `Bearer ${token}`.trim() 
+      // 💡 헤더 문자열을 한 번 더 trim() 하여 안전하게 전송
+      'Authorization': `Bearer ${token}`.trim()
     },
-    body: formData, // Content-Type은 절대로 수동으로 설정하지 마세요!
+    body: formData, // 주의: Content-Type은 브라우저가 자동 설정하게 둡니다.
   });
 
   if (!res.ok) {
