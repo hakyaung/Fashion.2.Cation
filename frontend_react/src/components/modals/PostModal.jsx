@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { uploadPost, searchLocations } from '../../api/api';
+import imageCompression from 'browser-image-compression';
 
 export default function PostModal({ isOpen, onClose, onPosted }) {
   const [content, setContent] = useState('');
@@ -38,17 +39,57 @@ export default function PostModal({ isOpen, onClose, onPosted }) {
   // ==========================================
   // 이미지 미리보기
   // ==========================================
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const f = e.target.files[0];
     if (!f) {
       resetImagePreview();
       return;
     }
-    setFileName(f.name);
-    setFile(f);
-    const reader = new FileReader();
-    reader.onload = (ev) => setPreviewUrl(ev.target.result);
-    reader.readAsDataURL(f);
+
+    // 파일 크기가 너무 작으면 압축할 필요 없음 (예: 500KB 이하면 그냥 통과)
+    if (f.size <= 500 * 1024) {
+      setFileName(f.name);
+      setFile(f);
+      const reader = new FileReader();
+      reader.onload = (ev) => setPreviewUrl(ev.target.result);
+      reader.readAsDataURL(f);
+      return;
+    }
+
+    setFileName("이미지 압축 중... ⏳"); // 사용자에게 압축 중임을 알림
+
+    // 💡 압축 옵션 설정
+    const options = {
+      maxSizeMB: 0.9, // 1MB 이하로 맞추기 위해 0.9MB로 설정
+      maxWidthOrHeight: 1920, // 가로나 세로 최대 픽셀 (FHD 화질 유지)
+      useWebWorker: true, // 브라우저가 버벅이지 않게 백그라운드 워커 사용
+    };
+
+    try {
+      // 마법의 압축 실행!
+      const compressedBlob = await imageCompression(f, options);
+      
+      // 사파리 버그 방지를 위해 Blob을 다시 안전한 File 객체로 덮어씌움
+      const ext = f.name.split('.').pop() || 'jpg';
+      const compressedFile = new File([compressedBlob], `compressed_${Date.now()}.${ext}`, {
+        type: compressedBlob.type,
+      });
+
+      console.log(`원본 크기: ${(f.size / 1024 / 1024).toFixed(2)}MB -> 압축 후: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+
+      setFileName("압축 완료! (업로드 준비됨)");
+      setFile(compressedFile); // 💡 이제 서버로는 이 '가벼운 파일'이 날아갑니다.
+
+      // 압축된 파일로 미리보기 생성
+      const reader = new FileReader();
+      reader.onload = (ev) => setPreviewUrl(ev.target.result);
+      reader.readAsDataURL(compressedFile);
+
+    } catch (error) {
+      console.error("이미지 압축 에러:", error);
+      alert("이미지 압축 중 오류가 발생했습니다. 다른 사진을 선택해주세요.");
+      resetImagePreview();
+    }
   };
 
   const resetImagePreview = () => {
