@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.models.models import User, Follow, Post 
 from app.core import security
 from app.core.config import settings
+from sqlalchemy import or_
 
 router = APIRouter()
 
@@ -209,3 +210,34 @@ def toggle_follow(target_user_id: UUID, db: Session = Depends(get_db), current_u
         db.add(new_follow)
         db.commit()
         return {"status": "followed"}
+
+        
+# ==========================================
+# 🔍 유저 검색 API (@ 검색용)
+# ==========================================
+@router.get("/search")
+def search_users(q: str, db: Session = Depends(get_db)):
+    # 1. 만약 검색어에 @가 섞여있다면 제거하고 순수 키워드만 추출
+    search_query = q.replace("@", "").strip()
+    
+    if not search_query:
+        return []
+
+    # 2. 닉네임이나 이메일에 검색어가 포함된 유저 최대 10명 찾기 (대소문자 구분 없음)
+    users = db.query(User).filter(
+        or_(
+            User.nickname.ilike(f"%{search_query}%"),
+            User.email.ilike(f"%{search_query}%")
+        )
+    ).limit(10).all()
+
+    # 3. 필요한 정보만 포장해서 반환
+    return [
+        {
+            "id": str(u.id), 
+            "nickname": u.nickname, 
+            "email": u.email, 
+            "profile_image_url": u.profile_image_url
+        } 
+        for u in users
+    ]

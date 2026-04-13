@@ -7,6 +7,7 @@ import os
 from app.api import posts, users, locations 
 from app.db.session import engine, Base
 from app.core.config import settings
+from app.api import chat
 
 # 1. DB 테이블 생성
 Base.metadata.create_all(bind=engine)
@@ -20,6 +21,7 @@ app = FastAPI(
 # 2. CORS 설정
 app.add_middleware(
     CORSMiddleware,
+    #allow_origins=["*"], # 로컬 테스트 시 일단 모든 출처 허용
     allow_origins=["http://localhost:3000", "https://fashion2cation.co.kr"],
     allow_credentials=True,
     allow_methods=["*"],
@@ -35,6 +37,7 @@ if not os.path.exists(UPLOAD_DIR):
 app.include_router(posts.router, prefix="/api/v1/posts", tags=["Posts"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(locations.router, prefix="/api/v1/locations", tags=["Locations"])
+app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
 
 # 5. 정적 파일 설정
 # 업로드된 이미지 서비스

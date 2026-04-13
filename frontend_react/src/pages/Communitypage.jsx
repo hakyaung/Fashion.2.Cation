@@ -1,35 +1,52 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react'; 
 import { useAuth } from '../context/Authcontext';
 
-// 💡 하경님의 실제 파일명(대문자 U)에 완벽하게 맞춘 경로
+// 훅 경로
 import useCursor from '../hooks/Usecursor';
-import useInfiniteScroll from '../hooks/Useinfinitescroll';
 
-// 💡 레이아웃 및 뷰 (소문자 파일명 반영)
+// 레이아웃 및 뷰
 import TopNav from '../components/layout/Topnav';
 import LeftSidebar from '../components/layout/Leftsidebar';
 import RightSidebar from '../components/layout/Rightsidebar';
 import MobileNav from '../components/layout/Mobilenav';
 import FeedView from '../components/feed/Feedview';
 import ProfileView from '../components/profile/Profileview';
+import MessageListView from '../components/chat/MessageListView';
 
-// 💡 모달 (PostModal만 대문자 M인 부분까지 정확히 반영)
+// 모달
 import AuthModal from '../components/modals/Authmodal';
 import PostModal from '../components/modals/PostModal';
 import CommentModal from '../components/modals/Commentmodal';
 import EditModal from '../components/modals/Editmodal';
+import ChatRoomModal from '../components/modals/ChatRoomModal'; // 💡 채팅 모달 임포트
 
 export default function CommunityPage() {
-  const { isLoggedIn, openAuthModal } = useAuth();
+  const { isLoggedIn, openAuthModal, currentUserId } = useAuth(); 
   const { cursorRef, followerRef } = useCursor();
 
   // ==========================================
   // 뷰 상태
   // ==========================================
-  const [activeView, setActiveView] = useState('home'); // 'home' | 'profile'
+  const [activeView, setActiveView] = useState('home'); 
+  const [viewUserId, setViewUserId] = useState(null); 
+
   const [sort, setSort] = useState('latest');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [userGeo, setUserGeo] = useState({ lat: null, lng: null });
+
+  // ==========================================
+  // 💬 채팅 모달 상태 (전역 관리)
+  // ==========================================
+  const [chatModal, setChatModal] = useState({ isOpen: false, targetUser: null });
+
+  const handleOpenChat = useCallback((user) => {
+    if (!isLoggedIn) {
+      alert('채팅을 이용하려면 로그인이 필요합니다.');
+      openAuthModal('login');
+      return;
+    }
+    setChatModal({ isOpen: true, targetUser: user });
+  }, [isLoggedIn, openAuthModal]);
 
   // ==========================================
   // 모달 상태
@@ -38,12 +55,9 @@ export default function CommunityPage() {
   const [commentModal, setCommentModal] = useState({ open: false, postId: null, onAdded: null });
   const [editModal, setEditModal] = useState({ open: false, post: null });
 
-  // 피드를 강제 새로고침하기 위한 key
   const [feedKey, setFeedKey] = useState(0);
 
-  // ==========================================
   // 검색 디바운스
-  // ==========================================
   const searchTimerRef = useRef(null);
   const [debouncedKeyword, setDebouncedKeyword] = useState('');
 
@@ -55,17 +69,17 @@ export default function CommunityPage() {
     }, 400);
   }, []);
 
-  // ==========================================
-  // 뷰 전환
-  // ==========================================
   const handleNavigate = useCallback(
-    (view) => {
-      if (view === 'profile') {
-        if (!isLoggedIn) {
-          alert('프로필을 보려면 로그인이 필요합니다.');
+    (view, targetUserId = null) => {
+      if (view === 'profile' || view === 'messages') {
+        if (!isLoggedIn && !targetUserId) {
+          alert('이 기능을 이용하려면 로그인이 필요합니다.');
           openAuthModal('login');
           return;
         }
+        setViewUserId(targetUserId); 
+      } else {
+        setViewUserId(null); 
       }
       setActiveView(view);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -73,9 +87,6 @@ export default function CommunityPage() {
     [isLoggedIn, openAuthModal]
   );
 
-  // ==========================================
-  // 정렬 변경
-  // ==========================================
   const handleSort = useCallback((newSort) => {
     setSort(newSort);
     setActiveView('home');
@@ -83,9 +94,6 @@ export default function CommunityPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  // ==========================================
-  // 태그 검색
-  // ==========================================
   const handleTagSearch = useCallback((tag) => {
     const keyword = tag.replace('#', '').trim();
     setSearchKeyword(keyword);
@@ -95,9 +103,6 @@ export default function CommunityPage() {
     setFeedKey((k) => k + 1);
   }, []);
 
-  // ==========================================
-  // 내 주변 (Geolocation)
-  // ==========================================
   const handleNearby = useCallback(() => {
     if (!('geolocation' in navigator)) {
       alert('이 브라우저는 위치 정보를 지원하지 않습니다.');
@@ -117,40 +122,26 @@ export default function CommunityPage() {
     );
   }, []);
 
-  // ==========================================
-  // 글쓰기 모달 열기
-  // ==========================================
   const handleOpenPostModal = useCallback(() => {
     if (!isLoggedIn) {
-      alert('글을 작성하려면 로그인이 필요합니다.');
       openAuthModal('login');
       return;
     }
     setPostModalOpen(true);
   }, [isLoggedIn, openAuthModal]);
 
-  // ==========================================
-  // 게시 완료 후 피드 새로고침
-  // ==========================================
   const handlePosted = useCallback(() => {
     setActiveView('home');
     setSort('latest');
     setSearchKeyword('');
     setDebouncedKeyword('');
     setFeedKey((k) => k + 1);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  // ==========================================
-  // 댓글 모달
-  // ==========================================
   const handleCommentOpen = useCallback((postId, onAdded) => {
     setCommentModal({ open: true, postId, onAdded });
   }, []);
 
-  // ==========================================
-  // 수정 모달
-  // ==========================================
   const handleEditOpen = useCallback((post) => {
     setEditModal({ open: true, post });
   }, []);
@@ -161,17 +152,15 @@ export default function CommunityPage() {
 
   return (
     <>
-      {/* 커스텀 커서 */}
       <div className="cursor" ref={cursorRef} />
       <div className="cursor-follower" ref={followerRef} />
 
-      {/* 상단 내비게이션 */}
       <TopNav
         searchKeyword={searchKeyword}
         onSearchChange={handleSearchChange}
+        onUserSelect={(userId) => handleNavigate('profile', userId)} 
       />
 
-      {/* 메인 레이아웃 */}
       <div className="community-layout" id="communityLayout">
         <LeftSidebar
           activeView={activeView}
@@ -183,7 +172,6 @@ export default function CommunityPage() {
         />
 
         <main className="center-feed">
-          {/* 홈 피드 */}
           {activeView === 'home' && (
             <FeedView
               key={`feed-${feedKey}-${sort}-${debouncedKeyword}`}
@@ -197,14 +185,27 @@ export default function CommunityPage() {
             />
           )}
 
-          {/* 프로필 뷰 */}
-          {activeView === 'profile' && <ProfileView />}
+          {activeView === 'profile' && (
+            <ProfileView 
+              targetUserId={viewUserId} 
+              onOpenChat={handleOpenChat} // 💡 프로필 뷰에서도 중앙 집중형 채팅 오픈 함수 전달
+            />
+          )}
+
+          {activeView === 'messages' && (
+            <MessageListView 
+              currentUserId={currentUserId} 
+              onRoomClick={(targetUser) => {
+                // 💡 [핵심 수정] 리스트 클릭 시 프로필로 가는 게 아니라 즉시 채팅창 열기!
+                handleOpenChat(targetUser);
+              }} 
+            />
+          )}
         </main>
 
         <RightSidebar onOpenPostModal={handleOpenPostModal} />
       </div>
 
-      {/* 모바일 하단 내비게이션 */}
       <MobileNav
         onNavigate={handleNavigate}
         onSort={handleSort}
@@ -212,7 +213,7 @@ export default function CommunityPage() {
         onOpenPost={handleOpenPostModal}
       />
 
-      {/* ===== 모달들 ===== */}
+      {/* ===== 공통 모달 레이어 ===== */}
       <AuthModal />
 
       <PostModal
@@ -233,6 +234,16 @@ export default function CommunityPage() {
         onClose={() => setEditModal({ open: false, post: null })}
         onEdited={handleEdited}
       />
+
+      {/* 💡 전역 채팅 모달: 어떤 뷰에서든 handleOpenChat만 호출하면 여기서 뜹니다. */}
+      {chatModal.isOpen && (
+        <ChatRoomModal 
+          isOpen={chatModal.isOpen} 
+          onClose={() => setChatModal({ isOpen: false, targetUser: null })} 
+          currentUserId={currentUserId} 
+          targetUser={chatModal.targetUser} 
+        />
+      )}
     </>
   );
 }

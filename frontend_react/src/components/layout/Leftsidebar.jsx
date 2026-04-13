@@ -23,6 +23,15 @@ export default function LeftSidebar({ activeView, activeSort, onNavigate, onSort
             <span>☺</span> 프로필
           </a>
         </li>
+        <li>
+            <a
+                href="#"
+                className={activeView === 'messages' ? 'active' : ''}
+                onClick={(e) => { e.preventDefault(); onNavigate('messages'); }}
+            >
+                <span>✉</span> 메시지
+            </a>
+        </li>
 
         <li className="menu-title" style={{ marginTop: 30 }}>피드 필터</li>
         <li>

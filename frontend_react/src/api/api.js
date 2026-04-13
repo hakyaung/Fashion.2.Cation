@@ -270,3 +270,40 @@ export async function uploadProfileImageApi(file) {
   if (!res.ok) throw new Error('이미지 업로드 실패');
   return res.json();
 }
+
+// ==========================================
+// 💬 채팅 API
+// ==========================================
+
+// 1. 특정 유저와의 채팅방 생성 (또는 기존 방 가져오기)
+export async function getOrCreateChatRoom(targetUserId) {
+  const token = getToken();
+  const currentUserId = getCurrentUserId();
+  
+  // FastAPI에서는 쿼리 파라미터(?키=값)로 current_user_id를 받도록 설정했습니다.
+  const res = await fetch(`${API_URL}/api/v1/chat/room/${targetUserId}?current_user_id=${currentUserId}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error("채팅방 생성/조회 실패");
+  return res.json(); // { room_id: 123 }
+}
+
+// 2. 과거 채팅 내역 불러오기
+export async function fetchChatHistory(roomId) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/api/v1/chat/${roomId}/messages`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error("채팅 내역 로드 실패");
+  return res.json();
+}
+
+// ==========================================
+// 유저 검색 API (@ 검색용)
+// ==========================================
+export async function searchUsersApi(keyword) {
+  const res = await fetch(`${API_URL}/api/v1/users/search?q=${encodeURIComponent(keyword)}`);
+  if (!res.ok) throw new Error('유저 검색 실패');
+  return res.json();
+}

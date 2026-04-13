@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Text, ForeignKey, Float, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+from datetime import datetime
 import uuid
 
 # 프로젝트 경로에 맞게 Base를 임포트하세요
@@ -117,3 +118,38 @@ class Location(Base):
 
     # 관계 설정
     posts = relationship("Post", back_populates="location")
+
+# ==========================================
+# 💬 채팅방 모델 (1:1 DM)
+# ==========================================
+class ChatRoom(Base):
+    __tablename__ = "chat_rooms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # 💡 Integer 대신 UUID로 변경, ondelete="CASCADE" 추가 (유저 탈퇴시 방도 삭제)
+    user1_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user2_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # 이 방에 속한 메시지들을 연결 (방이 삭제되면 메시지도 삭제)
+    messages = relationship("Message", back_populates="room", cascade="all, delete-orphan")
+
+# ==========================================
+# 💬 메시지 모델
+# ==========================================
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(Integer, ForeignKey("chat_rooms.id", ondelete="CASCADE"), nullable=False)
+    # 💡 Integer 대신 UUID로 변경
+    sender_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    content = Column(String, nullable=False)
+    
+    is_read = Column(Boolean, default=False) 
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    room = relationship("ChatRoom", back_populates="messages")
+    sender = relationship("User")
+
+    
