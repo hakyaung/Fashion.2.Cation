@@ -25,7 +25,7 @@ export function getToken() {
 }
 
 export function getCurrentUserId() {
-  const token = getToken(); 
+  const token = getToken();
   if (!token) return null;
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
@@ -44,7 +44,8 @@ export async function fetchPosts({ skip = 0, limit = 5, sort = 'latest', lat = n
 
   let url = `${API_URL}/api/v1/posts/?skip=${skip}&limit=${limit}&sort_by=${sort}`;
   if (sort === 'nearby' && lat && lng) url += `&lat=${lat}&lng=${lng}`;
-  if (q.trim()) url += `&q=${encodeURIComponent(q.trim())}`;
+  // q가 존재하고 공백이 아닐 때만 추가 (trim() 안전 처리)
+  if (q && String(q).trim()) url += `&q=${encodeURIComponent(String(q).trim())}`;
 
   const res = await fetch(url, { headers });
   if (!res.ok) throw new Error('피드 로드 실패');
@@ -102,16 +103,18 @@ export async function postComment(postId, content) {
 // 게시물 작성 API (💡 모바일 사파리 에러 해결)
 // ==========================================
 export async function uploadPost({ locationId, content, tags, file }) {
-  // 원래 있던 getToken() 사용 (안전함)
   const token = getToken();
   const formData = new FormData();
-  
+
+  // 💡 모든 텍스트 필드를 명시적으로 String() 변환
+  //    (모바일에서 숫자/undefined가 들어오면 "The string did not match" 에러 발생)
   formData.append('location_id', String(locationId));
   formData.append('content', String(content));
-  if (tags) formData.append('user_tags', String(tags));
+  if (tags && String(tags).trim()) formData.append('user_tags', String(tags));
 
   if (file) {
-    // 💡 딱 이것만 추가: 모바일 특수 파일명 강제 변경
+    // 💡 모바일 사파리는 HEIC·특수문자 파일명이 서버 패턴 검증에 걸림
+    //    → 파일명을 안전한 ASCII로 강제 교체
     formData.append('file', file, 'safe_image.jpg');
   }
 
@@ -120,10 +123,14 @@ export async function uploadPost({ locationId, content, tags, file }) {
     headers: { Authorization: `Bearer ${token}` },
     body: formData,
   });
-  
+
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || '업로드 실패');
+    let detail = '업로드 실패';
+    try {
+      const err = await res.json();
+      detail = err.detail || detail;
+    } catch (_) {}
+    throw new Error(detail);
   }
   return res.json();
 }
@@ -201,7 +208,9 @@ export function getShareUrl(postId) {
   return `${API_URL}/share/${postId}`;
 }
 
-// 특정 유저의 상세 프로필 정보 가져오기
+// ==========================================
+// 특정 유저 상세 프로필 조회
+// ==========================================
 export async function fetchUserProfile(userId) {
   const token = getToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
@@ -210,7 +219,9 @@ export async function fetchUserProfile(userId) {
   return res.json();
 }
 
-// 내 프로필 수정하기
+// ==========================================
+// 내 프로필 수정
+// ==========================================
 export async function updateProfileApi(profileData) {
   const token = getToken();
   const res = await fetch(`${API_URL}/api/v1/users/me/profile`, {
@@ -225,7 +236,9 @@ export async function updateProfileApi(profileData) {
   return res.json();
 }
 
-// 팔로우/언팔로우 토글
+// ==========================================
+// 팔로우 / 언팔로우 토글
+// ==========================================
 export async function toggleFollowApi(targetUserId) {
   const token = getToken();
   const res = await fetch(`${API_URL}/api/v1/users/${targetUserId}/follow`, {
@@ -237,22 +250,20 @@ export async function toggleFollowApi(targetUserId) {
 }
 
 // ==========================================
-// 프로필 이미지 업로드 API (💡 모바일 사파리 에러 해결 적용)
+// 프로필 이미지 업로드 (💡 모바일 사파리 에러 해결 적용)
 // ==========================================
 export async function uploadProfileImageApi(file) {
   const token = getToken();
   const formData = new FormData();
-  
+
   if (file) {
-    // 💡 딱 이것만 추가
+    // 모바일 특수 파일명 강제 교체
     formData.append('file', file, 'safe_profile.jpg');
   }
 
   const res = await fetch(`${API_URL}/api/v1/users/me/profile-image`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
     body: formData,
   });
 
