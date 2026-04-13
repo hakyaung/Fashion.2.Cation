@@ -222,8 +222,22 @@ body {
   .btn-profile-action { width: 100% !important; text-align: center !important; }
   .profile-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 2px !important; }
 
-  .modal-overlay { align-items: flex-end !important; }
-  .auth-modal-content { width: 100% !important; max-width: 100% !important; border-radius: 18px 18px 0 0 !important; padding: 24px 18px calc(24px + env(safe-area-inset-bottom)) !important; max-height: 92vh !important; overflow-y: auto !important; }
+  .modal-overlay {
+    align-items: flex-end !important; /* 아래에서 위로 올라오는 형태 유지 */
+    padding-bottom: 75px !important; /* 💡 하단 바 높이(65px)보다 조금 더 여유 있게(75px) 위로 올림 */
+  }
+
+  .auth-modal-content, 
+  .post-modal-content, 
+  .chat-modal-content { /* 채팅 모달 클래스명이 다를 수 있으니 확인 필요 */
+    width: 94% !important; /* 화면 양옆에 살짝 여백을 주어 더 깔끔하게 */
+    margin: 0 auto !important;
+    border-radius: 20px !important; /* 하단도 둥글게 처리하여 공중에 떠 있는 느낌 부여 */
+    max-height: 80vh !important; /* 화면을 너무 많이 가리지 않게 조절 */
+    padding-bottom: 24px !important; /* 하단 내부 여백 */
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.2) !important; /* 위쪽으로 그림자 추가 */
+  }
+
   #commentModal .auth-modal-content { height: auto !important; max-height: 80vh !important; }
   .auth-form input, .auth-form textarea, .auth-form select { font-size: 16px !important; }
 
@@ -233,24 +247,72 @@ body {
     bottom: 0 !important;
     left: 0 !important;
     width: 100% !important;
-    height: 62px !important;
-    background: rgba(250,248,244,0.97) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border-top: 1px solid rgba(26,22,18,0.08) !important;
+    height: 65px !important; /* 높이를 조금 더 여유있게 조정 */
+    background: rgba(250, 248, 244, 0.98) !important;
+    backdrop-filter: blur(15px) !important;
+    -webkit-backdrop-filter: blur(15px) !important;
+    border-top: 1px solid rgba(26, 22, 18, 0.08) !important;
     justify-content: space-around !important;
     align-items: center !important;
     z-index: 9999 !important;
     padding-bottom: env(safe-area-inset-bottom) !important;
-    box-sizing: content-box !important;
+    box-sizing: border-box !important;
   }
-  .mobile-nav button { flex: 1 !important; background: none !important; border: none !important; font-size: 10px !important; color: rgba(26,22,18,0.5) !important; display: flex !important; flex-direction: column !important; align-items: center !important; gap: 2px !important; cursor: pointer !important; padding: 0 !important; font-family: 'DM Sans', sans-serif; }
-  .mobile-nav button span { font-size: 20px !important; }
-  .mobile-nav .post-btn { background: var(--rust) !important; color: white !important; width: 48px !important; height: 48px !important; border-radius: 50% !important; margin-top: -28px !important; box-shadow: 0 4px 14px rgba(196,84,42,0.4) !important; font-size: 24px !important; flex: 0 0 48px !important; }
+
+  .mobile-nav button {
+    flex: 1 !important; /* 5개 버튼이 정확히 1/5씩 차지 */
+    background: none !important;
+    border: none !important;
+    font-size: 10px !important;
+    color: rgba(26, 22, 18, 0.5) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 4px !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    transition: color 0.2s;
+  }
+
+  .mobile-nav button span {
+    font-size: 22px !important; /* 아이콘 크기 통일 */
+  }
+
+  .mobile-nav .post-btn-inline {
+    color: var(--rust) !important; /* 포인트 컬러 적용 */
+    font-weight: 600 !important;
+  }
+
+  .mobile-nav .plus-box {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: var(--rust);
+    color: white !important;
+    border-radius: 8px; /* 둥근 사각형 스타일 */
+    font-size: 20px !important;
+    margin-bottom: 2px;
+  }
 
   #postModal.modal-overlay { align-items: center !important; padding: 15px !important; }
   #postModal .auth-modal-content { border-radius: 20px !important; margin-bottom: 90px !important; max-height: 75vh !important; padding-bottom: 30px !important; }
   #commentModal .auth-modal-content { padding-bottom: 100px !important; max-height: 85vh !important; }
+
+  /* 2. 채팅 모달 전용 높이 및 너비 조절 */
+  #chat-room-modal-content {
+    width: 94% !important;
+    height: 70vh !important; /* 💡 고정 600px 대신 화면 높이의 70%로 조절하여 키보드 대응 */
+    margin: 0 auto !important;
+    border-radius: 20px !important;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15) !important;
+  }
+
+  /* 3. 입력창 터치 영역 확보 */
+  #chat-room-modal-content form {
+    padding: 10px 15px 15px 15px !important;
+  }
 }
 
 @media (min-width: 769px) {

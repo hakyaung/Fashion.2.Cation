@@ -88,7 +88,7 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
 
   return (
     <div className="modal-overlay active" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="auth-modal-content" style={{ 
+      <div id="chat-room-modal-content" className="auth-modal-content" style={{ 
         maxWidth: '400px', 
         height: '600px', 
         display: 'flex', 
