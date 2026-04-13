@@ -296,7 +296,39 @@ body {
     margin-bottom: 2px;
   }
 
-  #postModal.modal-overlay { align-items: center !important; padding: 15px !important; }
+  #postModal.modal-overlay, /* 만약 id가 postModal이라면 */
+  .modal-overlay:has(#post-modal-content) {
+    align-items: flex-end !important;
+    padding-bottom: 75px !important; /* 하단바(65px) + 여유(10px) */
+  }
+
+  #post-modal-content {
+    width: 96% !important;
+    max-height: 85vh !important; /* 화면 높이의 85%까지 허용 */
+    margin: 0 auto !important;
+    border-radius: 20px !important;
+    overflow-y: auto !important; /* 내용이 많으면 내부 스크롤 생성 */
+    padding: 24px 20px !important;
+    box-shadow: 0 -10px 25px rgba(0,0,0,0.2) !important;
+  }
+
+  .post-image-preview {
+    max-height: 200px !important;
+    object-fit: cover;
+    border-radius: 12px;
+  }
+
+  .btn-submit-post {
+    width: 100% !important;
+    padding: 16px !important;
+    font-size: 16px !important;
+    margin-top: 10px !important;
+    background: var(--rust) !important;
+    border-radius: 12px !important;
+    position: sticky; /* 💡 스크롤을 내려도 버튼이 보이게 하고 싶다면 사용 */
+    bottom: 0;
+  }
+
   #postModal .auth-modal-content { border-radius: 20px !important; margin-bottom: 90px !important; max-height: 75vh !important; padding-bottom: 30px !important; }
   #commentModal .auth-modal-content { padding-bottom: 100px !important; max-height: 85vh !important; }
 
