@@ -102,27 +102,33 @@ export async function postComment(postId, content) {
 // 게시물 작성 API (💡 모바일 사파리 에러 해결)
 // ==========================================
 export async function uploadPost({ locationId, content, tags, file }) {
-  const token = getToken();
+  // 방어 1. 토큰 완벽 세척: JWT 토큰에 허용된 영문, 숫자, -, _, . 외의 모든 투명 문자를 파괴합니다.
+  let token = localStorage.getItem('stylescape_token') || '';
+  token = token.replace(/[^A-Za-z0-9\-_\.]/g, '');
+
+  // 방어 2. URL 완벽 세척: 주소에 숨어있는 줄바꿈이나 공백을 파괴합니다.
+  const cleanApiUrl = API_URL.replace(/[\r\n\s]/g, '');
+
   const formData = new FormData();
-  formData.append('location_id', locationId);
-  formData.append('content', content);
-  if (tags) formData.append('user_tags', tags);
-  
+  formData.append('location_id', String(locationId));
+  formData.append('content', String(content));
+  if (tags) formData.append('user_tags', String(tags));
+
   if (file) {
-    // 사파리 브라우저가 파일명에 포함된 한글이나 특수문자를 헤더에 담지 못해 터지는 에러 방지
-    const ext = file.name ? file.name.split('.').pop() : 'jpg';
-    const safeFileName = `post_${Date.now()}.${ext}`;
-    formData.append('file', file, safeFileName);
+    // 방어 3. 파일명 강제 세척: 아이폰 카메라가 전달하는 이상한 파일명이나 한글을 무시하고, 
+    // 브라우저가 절대 거부할 수 없는 가장 무난한 영어 이름으로 덮어씌웁니다.
+    formData.append('file', file, 'safe_image.jpg');
   }
 
-  const res = await fetch(`${API_URL}/api/v1/posts/upload`, {
+  const res = await fetch(`${cleanApiUrl}/api/v1/posts/upload`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
   });
   
   if (!res.ok) {
-    const err = await res.json();
+    // 혹시라도 사진 용량이 너무 커서 서버(Nginx)가 튕겨냈을 때 발생하는 추가 에러 방지
+    const err = await res.json().catch(() => ({ detail: '이미지 용량이 너무 크거나 서버가 응답하지 않습니다.' }));
     throw new Error(err.detail || '업로드 실패');
   }
   return res.json();
@@ -240,24 +246,25 @@ export async function toggleFollowApi(targetUserId) {
 // 프로필 이미지 업로드 API (💡 모바일 사파리 에러 해결 적용)
 // ==========================================
 export async function uploadProfileImageApi(file) {
-  const token = getToken();
+  let token = localStorage.getItem('stylescape_token') || '';
+  token = token.replace(/[^A-Za-z0-9\-_\.]/g, '');
+  const cleanApiUrl = API_URL.replace(/[\r\n\s]/g, '');
+
   const formData = new FormData();
-  
   if (file) {
-    // 게시글 업로드와 동일하게 프로필 사진 이름도 안전하게 변경합니다.
-    const ext = file.name ? file.name.split('.').pop() : 'jpg';
-    const safeFileName = `profile_${Date.now()}.${ext}`;
-    formData.append('file', file, safeFileName);
+    // 프로필 사진 파일명도 강제 세척
+    formData.append('file', file, 'safe_profile.jpg');
   }
 
-  const res = await fetch(`${API_URL}/api/v1/users/me/profile-image`, {
+  const res = await fetch(`${cleanApiUrl}/api/v1/users/me/profile-image`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
+    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
     body: formData,
   });
 
-  if (!res.ok) throw new Error('이미지 업로드 실패');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: '서버 응답 오류 (용량 초과 등)' }));
+    throw new Error(err.detail || '이미지 업로드 실패');
+  }
   return res.json();
 }
