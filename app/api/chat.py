@@ -74,10 +74,12 @@ async def websocket_chat(websocket: WebSocket, room_id: str, user_id: str):
 
             # 포장해서 방 전체에 뿌리기
             msg_data = {
+                "type": "message",
                 "id": new_message.id,
                 "room_id": room_id_int,
                 "sender_id": str(new_message.sender_id),
                 "content": new_message.content,
+                "is_read": new_message.is_read,
                 "created_at": new_message.created_at.isoformat() if new_message.created_at else ""
             }
             await manager.broadcast_to_room(room_id_int, json.dumps(msg_data))
@@ -162,3 +164,34 @@ def get_user_rooms(current_user_id: str, db: Session = Depends(get_db)):
     
     # 마지막 메시지 시간순으로 정렬
     return sorted(result, key=lambda x: x['last_message_time'], reverse=True)
+
+# ==========================================
+# 💡 [새로 추가] 메시지 읽음 처리 API
+# ==========================================
+@router.put("/room/{room_id}/read")
+async def mark_messages_as_read(room_id: int, current_user_id: str, db: Session = Depends(get_db)):
+    unread_messages = db.query(Message).filter(
+        Message.room_id == room_id,
+        Message.sender_id != current_user_id,
+        Message.is_read == False    
+    ).all()
+    
+    if not unread_messages:
+        return {"status": "ok", "updated": 0}
+        
+    for msg in unread_messages:
+        msg.is_read = True
+    db.commit()
+    
+    # 💡 [핵심 수정] 파이썬의 숫자형 room_id를 문자열(str)로 변환해서 방송합니다.
+    # (웹소켓 매니저가 방 번호를 문자로 저장하고 있을 확률이 높기 때문입니다)
+    read_event = {
+        "type": "read_receipt",
+        "room_id": str(room_id), 
+        "reader_id": str(current_user_id)
+    }
+    
+    # broadcast_to_room 함수 호출 시에도 str(room_id) 사용!
+    await manager.broadcast_to_room(str(room_id), json.dumps(read_event))
+    
+    return {"status": "ok", "updated": len(unread_messages)}
