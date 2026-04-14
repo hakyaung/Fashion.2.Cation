@@ -168,6 +168,184 @@ body {
 /* Image preview */
 #removePreviewBtn:hover { background: var(--rust) !important; transform: scale(1.1); transition: all 0.2s ease; }
 
+/* 패션 평가 기능 */
+/* Swipe deck */
+.fashion-eval {
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 8px 0 48px;
+  user-select: none;
+}
+.fashion-eval-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.fashion-eval-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 26px;
+  color: var(--warm-black);
+  margin-bottom: 8px;
+}
+.fashion-eval-sub {
+  font-size: 13px;
+  color: rgba(26, 22, 18, 0.65);
+  line-height: 1.5;
+}
+.fashion-eval-sub strong {
+  color: var(--rust);
+}
+.fashion-eval-loading,
+.fashion-eval-empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: rgba(26, 22, 18, 0.55);
+  font-size: 14px;
+}
+.fashion-eval-reload {
+  margin-top: 16px;
+  background: var(--rust);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 24px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+}
+.fashion-eval-stack-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+.fashion-eval-stack {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  height: min(72vh, 520px);
+  touch-action: pan-y;
+}
+.fashion-eval-card {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+}
+.fashion-eval-card--back {
+  transform: scale(0.94) translateY(10px);
+  z-index: 1;
+  filter: brightness(0.97);
+  pointer-events: none;
+}
+.fashion-eval-card--back img {
+  flex: 1;
+  width: 100%;
+  object-fit: cover;
+  min-height: 0;
+}
+.fashion-eval-card--front {
+  z-index: 2;
+  cursor: grab;
+}
+.fashion-eval-card--front:active {
+  cursor: grabbing;
+}
+.fashion-eval-card--front img {
+  flex: 1;
+  width: 100%;
+  object-fit: cover;
+  min-height: 0;
+  pointer-events: none;
+}
+.fashion-eval-stamp {
+  position: absolute;
+  top: 24px;
+  z-index: 4;
+  padding: 6px 14px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 8px;
+  pointer-events: none;
+  border: 3px solid;
+}
+.fashion-eval-stamp--nope {
+  left: 20px;
+  color: #c62828;
+  border-color: #c62828;
+  transform: rotate(-12deg);
+}
+.fashion-eval-stamp--like {
+  right: 20px;
+  color: #2e7d32;
+  border-color: #2e7d32;
+  transform: rotate(12deg);
+}
+.fashion-eval-card-body {
+  padding: 14px 16px 16px;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.98));
+  margin-top: auto;
+}
+.fashion-eval-caption {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--warm-black);
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.fashion-eval-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: rgba(26, 22, 18, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.fashion-eval-loc {
+  color: var(--gold);
+}
+.fashion-eval-actions {
+  display: flex;
+  gap: 28px;
+  justify-content: center;
+  align-items: center;
+}
+.fashion-eval-btn {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+.fashion-eval-btn:hover {
+  transform: scale(1.06);
+}
+.fashion-eval-btn--nope {
+  color: #c62828;
+  border-color: rgba(198, 40, 40, 0.35);
+}
+.fashion-eval-btn--like {
+  color: var(--rust);
+  border-color: rgba(196, 84, 42, 0.45);
+  font-size: 26px;
+}
+
 /* ==========================================
    📱 모바일 반응형
    ========================================== */

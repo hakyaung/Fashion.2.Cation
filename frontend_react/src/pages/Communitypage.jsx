@@ -12,6 +12,7 @@ import MobileNav from '../components/layout/Mobilenav';
 import FeedView from '../components/feed/Feedview';
 import ProfileView from '../components/profile/Profileview';
 import MessageListView from '../components/chat/MessageListView';
+import FashionEvalView from '../components/fashion/FashionEvalView'; // 💡 [추가됨] 패션 평가 뷰
 
 // 모달
 import AuthModal from '../components/modals/Authmodal';
@@ -52,7 +53,13 @@ export default function CommunityPage() {
   // 모달 상태
   // ==========================================
   const [postModalOpen, setPostModalOpen] = useState(false);
-  const [commentModal, setCommentModal] = useState({ open: false, postId: null, onAdded: null });
+  const [commentModal, setCommentModal] = useState({
+    open: false,
+    postId: null,
+    postOwnerId: null, // 💡 [추가됨] 댓글 권한 관리용
+    onAdded: null,
+    onRemoved: null,   // 💡 [추가됨] 댓글 삭제 업데이트용
+  });
   const [editModal, setEditModal] = useState({ open: false, post: null });
 
   const [feedKey, setFeedKey] = useState(0);
@@ -87,7 +94,7 @@ export default function CommunityPage() {
     [isLoggedIn, openAuthModal]
   );
 
-  // 💡 [추가됨] 피드에서 프로필 사진이나 이름 클릭 시 호출될 함수
+  // 💡 [유지됨] 피드에서 프로필 사진이나 이름 클릭 시 호출될 함수 (기존 기능)
   const handleProfileClick = useCallback((userId) => {
     if (!userId) return;
     handleNavigate('profile', userId);
@@ -144,8 +151,9 @@ export default function CommunityPage() {
     setFeedKey((k) => k + 1);
   }, []);
 
-  const handleCommentOpen = useCallback((postId, onAdded) => {
-    setCommentModal({ open: true, postId, onAdded });
+  // 💡 [수정됨] 매개변수가 확장된 댓글 오픈 핸들러
+  const handleCommentOpen = useCallback((postId, postOwnerId, onAdded, onRemoved) => {
+    setCommentModal({ open: true, postId, postOwnerId, onAdded, onRemoved });
   }, []);
 
   const handleEditOpen = useCallback((post) => {
@@ -187,7 +195,7 @@ export default function CommunityPage() {
               onTagSearch={handleTagSearch}
               onCommentOpen={handleCommentOpen}
               onEditOpen={handleEditOpen}
-              onProfileClick={handleProfileClick} // 💡 [추가됨] FeedView로 함수 전달
+              onProfileClick={handleProfileClick} // 💡 [유지됨] FeedView로 함수 전달
               isActive={activeView === 'home'}
             />
           )}
@@ -207,6 +215,9 @@ export default function CommunityPage() {
               }} 
             />
           )}
+
+          {/* 💡 [추가됨] 패션 평가 뷰 라우팅 */}
+          {activeView === 'fashion-eval' && <FashionEvalView />}
         </main>
 
         <RightSidebar onOpenPostModal={handleOpenPostModal} />
@@ -228,11 +239,22 @@ export default function CommunityPage() {
         onPosted={handlePosted}
       />
 
+      {/* 💡 [수정됨] 추가된 props를 모두 받는 CommentModal */}
       <CommentModal
         isOpen={commentModal.open}
         postId={commentModal.postId}
-        onClose={() => setCommentModal({ open: false, postId: null, onAdded: null })}
+        postOwnerId={commentModal.postOwnerId}
+        onClose={() =>
+          setCommentModal({
+            open: false,
+            postId: null,
+            postOwnerId: null,
+            onAdded: null,
+            onRemoved: null,
+          })
+        }
         onCommentAdded={commentModal.onAdded}
+        onCommentRemoved={commentModal.onRemoved}
       />
 
       <EditModal

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { editPostApi, API_URL } from '../../api/api';
+// 💡 API_URL 대신 resolveMediaUrl을 가져옵니다.
+import { editPostApi, resolveMediaUrl } from '../../api/api';
 
 /**
  * @param {object} post - 수정 대상 게시물 (null이면 닫힌 상태)
@@ -90,7 +91,8 @@ export default function EditModal({ post, onClose, onEdited }) {
         {hasImage && (
           <div style={{ marginBottom: 16 }}>
             <img
-              src={`${API_URL}${post.image_url}`}
+              // 💡 추가된 기능: resolveMediaUrl을 사용하여 이미지 경로를 안전하게 렌더링합니다.
+              src={resolveMediaUrl(post.image_url)}
               alt="기존 이미지"
               style={{
                 width: '100%',

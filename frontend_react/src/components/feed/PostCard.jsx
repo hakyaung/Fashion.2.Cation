@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { API_URL, toggleLikeApi, deletePostApi } from '../../api/api';
+// 💡 추가된 기능: resolveMediaUrl 임포트
+import { API_URL, resolveMediaUrl, toggleLikeApi, deletePostApi } from '../../api/api';
 import { useAuth } from '../../context/Authcontext';
 
 export default function PostCard({ post, onTagSearch, onCommentOpen, onEditOpen, onDeleted, onLikeToggle, onProfileClick }) {
@@ -7,9 +8,8 @@ export default function PostCard({ post, onTagSearch, onCommentOpen, onEditOpen,
   const [menuOpen, setMenuOpen] = useState(false);
 
   // ==========================================
-  // 💡 데이터 매핑 부분 (콘솔에서 찾은 키값을 여기에 추가하세요!)
+  // 💡 데이터 매핑 부분 (기존 유지: 프로필 사진 및 이름 표시용)
   // ==========================================
-  // 예: post.user?.profile_image_url, post.author_image 등
   const authorImage = post.user?.profile_image_url || post.author_profile_image || post.profile_image_url; 
   const authorName = post.user?.nickname || post.author || 'Style_Creator';
   const authorId = post.user?.id || post.user_id;
@@ -22,13 +22,12 @@ export default function PostCard({ post, onTagSearch, onCommentOpen, onEditOpen,
     : '텍스트 게시물';
 
   // ==========================================
-  // 🛠️ URL 처리 로직 보강 (슬래시 '/' 누락 방지)
+  // 🛠️ 프로필 이미지용 URL 처리 로직 (기존 유지)
   // ==========================================
   const getFullImageUrl = (url) => {
     if (!url) return "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=100";
     if (url.startsWith('http')) return url;
     
-    // 백엔드에서 슬래시 없이 'uploads/...' 로 올 경우를 대비해 안전하게 조합합니다.
     const formattedUrl = url.startsWith('/') ? url : `/${url}`;
     return `${API_URL}${formattedUrl}`;
   };
@@ -109,6 +108,7 @@ export default function PostCard({ post, onTagSearch, onCommentOpen, onEditOpen,
         
         <div className="post-meta" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           
+          {/* 💡 기존 유지: 프로필 사진과 닉네임, 그리고 클릭 기능 */}
           <div 
             onClick={(e) => {
               e.stopPropagation(); 
@@ -175,7 +175,8 @@ export default function PostCard({ post, onTagSearch, onCommentOpen, onEditOpen,
       {/* 이미지 */}
       {hasImage && (
         <div className="post-image-container">
-          <img src={getFullImageUrl(post.image_url)} className="post-img" alt="Fashion Post" />
+          {/* 💡 추가된 기능: 메인 포스트 이미지에 resolveMediaUrl 적용 */}
+          <img src={resolveMediaUrl(post.image_url)} className="post-img" alt="Fashion Post" />
         </div>
       )}
 
@@ -207,7 +208,8 @@ export default function PostCard({ post, onTagSearch, onCommentOpen, onEditOpen,
 
         <button
           className="action-btn btn-comment"
-          onClick={() => onCommentOpen(post.id)}
+          // 💡 추가된 기능: 댓글 모달을 열 때 게시글 작성자의 ID도 함께 넘겨줍니다.
+          onClick={() => onCommentOpen(post.id, post.user_id)}
         >
           <span>💬</span> 댓글 <b className="comment-cnt">{post.comment_count}</b>
         </button>

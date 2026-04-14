@@ -17,6 +17,15 @@ function getApiUrl() {
 
 export const API_URL = getApiUrl();
 
+// 💡 추가된 기능: 이미지 경로를 안전하게 조합해주는 헬퍼 함수
+/** /static/... or https://... -> full URL for <img src> */
+export function resolveMediaUrl(pathOrUrl) {
+  if (pathOrUrl == null || pathOrUrl === '') return '';
+  const s = String(pathOrUrl).trim();
+  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+  return `${API_URL}${s.startsWith('/') ? s : `/${s}`}`;
+}
+
 // ==========================================
 // 인증 헬퍼 (원상 복구: 멀쩡하던 피드 에러 해결)
 // ==========================================
@@ -76,6 +85,17 @@ export async function toggleLikeApi(postId) {
   return res.json(); // { status: 'liked' | 'unliked' }
 }
 
+// 💡 추가된 기능: 좋아요 상태 동기화용
+export async function ensureLikeApi(postId) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/api/v1/posts/${postId}/like/ensure`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('좋아요 실패');
+  return res.json(); // { status: 'liked' | 'already_liked' }
+}
+
 // ==========================================
 // 댓글 API
 // ==========================================
@@ -96,6 +116,46 @@ export async function postComment(postId, content) {
     body: JSON.stringify({ content }),
   });
   if (!res.ok) throw new Error('댓글 작성 실패');
+  return res.json();
+}
+
+// 💡 추가된 기능: 댓글 수정 API
+export async function updateCommentApi(postId, commentId, content) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/api/v1/posts/${postId}/comments/${commentId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) {
+    let msg = '댓글 수정 실패';
+    try {
+      const j = await res.json();
+      if (typeof j.detail === 'string') msg = j.detail;
+    } catch (e) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+// 💡 추가된 기능: 댓글 삭제 API
+export async function deleteCommentApi(postId, commentId) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/api/v1/posts/${postId}/comments/${commentId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    let msg = '댓글 삭제 실패';
+    try {
+      const j = await res.json();
+      if (typeof j.detail === 'string') msg = j.detail;
+    } catch (e) {}
+    throw new Error(msg);
+  }
   return res.json();
 }
 

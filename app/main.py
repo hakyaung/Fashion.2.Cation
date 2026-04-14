@@ -18,11 +18,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# 2. CORS 설정
+# 2. CORS 설정 (💡 로컬 네트워크 및 모바일 테스트를 위해 확장됨)
 app.add_middleware(
     CORSMiddleware,
-    #allow_origins=["*"], # 로컬 테스트 시 일단 모든 출처 허용
-    allow_origins=["http://localhost:3000", "https://fashion2cation.co.kr"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://[::1]:3000",
+        "https://fashion2cation.co.kr",
+    ],
+    allow_origin_regex=r"http://(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):3000",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

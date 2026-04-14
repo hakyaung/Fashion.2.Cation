@@ -11,9 +11,6 @@ from app.models.models import Post, PostTag, User, Location, Like, Comment
 from app.services.ai_gateway import send_to_ai_worker
 from app.api.deps import get_current_user
 
-from pydantic import BaseModel
-from fastapi import HTTPException
-
 router = APIRouter()
 UPLOAD_DIR = "uploads"
 
@@ -106,7 +103,6 @@ def get_fashion_feed(
     current_user: Optional[User] = Depends(get_current_user_optional) 
 ):
     try:
-        # 1. 기본 쿼리 및 관계 로드
         query = db.query(Post).options(
             joinedload(Post.user),
             joinedload(Post.location),
@@ -115,13 +111,11 @@ def get_fashion_feed(
             joinedload(Post.tags)
         )
 
-        # 2. 필터링 (검색 및 지역 필터)
         if location_id is not None:
             query = query.filter(Post.location_id == location_id)
         if q and q.strip():
             query = query.filter(Post.content.ilike(f"%{q.strip()}%"))
 
-        # 3. 정렬 로직 (핵심 수정 부분)
         if sort_by == "popular":
             query = query.outerjoin(Like).group_by(Post.id).order_by(
                 func.count(Like.id).desc(), 
@@ -141,7 +135,6 @@ def get_fashion_feed(
 
         posts = query.offset(skip).limit(limit).all()
 
-        # 4. 결과 가공 (기존 로직 유지)
         results = []
         for post in posts:
             is_liked = False
@@ -154,7 +147,7 @@ def get_fashion_feed(
                 "content": post.content,
                 "image_url": post.image_url,
                 "author": post.user.nickname if post.user else "탈퇴한 사용자",
-                # 💡 [핵심 추가] 프론트엔드가 프로필 사진을 띄울 수 있도록 주소를 함께 넘겨줍니다!
+                # 💡 [유지됨] 프로필 사진 출력 기능
                 "author_profile_image": post.user.profile_image_url if post.user else None,
                 "location": post.location.full_name if post.location else "지역 정보 없음",
                 "created_at": post.created_at.isoformat() if post.created_at else None,
@@ -173,8 +166,17 @@ def get_fashion_feed(
         raise HTTPException(status_code=500, detail=f"서버 에러: {str(e)}")
 
 # ==========================================
-# 3. 좋아요 토글
+# 3. 좋아요 토글 & 강제 동기화 (💡 추가됨)
 # ==========================================
+@router.post("/{post_id}/like/ensure")
+def ensure_like(post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    existing = db.query(Like).filter(Like.post_id == post_id, Like.user_id == current_user.id).first()
+    if existing:
+        return {"status": "already_liked"}
+    db.add(Like(post_id=post_id, user_id=current_user.id))
+    db.commit()
+    return {"status": "liked"}
+
 @router.post("/{post_id}/like")
 def toggle_like(post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     existing_like = db.query(Like).filter(Like.post_id == post_id, Like.user_id == current_user.id).first()
@@ -189,7 +191,7 @@ def toggle_like(post_id: str, db: Session = Depends(get_db), current_user: User 
         return {"status": "liked"}
 
 # ==========================================
-# 4. 댓글 작성
+# 4. 댓글 작성 및 조회
 # ==========================================
 class CommentCreate(BaseModel):
     content: str
@@ -201,26 +203,70 @@ def add_comment(post_id: str, comment: CommentCreate, db: Session = Depends(get_
     db.commit()
     return {"status": "success"}
 
-# ==========================================
-# 5. 댓글 조회
-# ==========================================
 @router.get("/{post_id}/comments")
 def get_comments(post_id: str, db: Session = Depends(get_db)):
     comments = db.query(Comment).options(joinedload(Comment.user)).filter(Comment.post_id == post_id).order_by(Comment.created_at.asc()).all()
     return [{
         "id": c.id,
+        "user_id": str(c.user_id), # 💡 [추가됨] 프론트엔드 권한 체크용
         "author": c.user.nickname if c.user else "탈퇴한 사용자",
         "content": c.content,
         "created_at": c.created_at.isoformat()
     } for c in comments]
 
+# ==========================================
+# 5. 댓글 수정 및 삭제 (💡 추가됨)
+# ==========================================
+def _comment_for_moderation(db: Session, post_id: str, comment_id: int, current_user: User) -> Comment:
+    comment = db.query(Comment).filter(Comment.id == comment_id, Comment.post_id == post_id).first()
+    if not comment:
+        raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    # 작성자 또는 게시물 주인인지 확인
+    if comment.user_id != current_user.id and post.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="댓글을 수정하거나 삭제할 권한이 없습니다.")
+    return comment
+
+class CommentUpdateBody(BaseModel):
+    content: str
+
+@router.patch("/{post_id}/comments/{comment_id}")
+def update_comment(
+    post_id: str,
+    comment_id: int,
+    body: CommentUpdateBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    comment = _comment_for_moderation(db, post_id, comment_id, current_user)
+    text = (body.content or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="댓글 내용을 입력해 주세요.")
+    comment.content = text
+    db.commit()
+    return {"status": "success"}
+
+@router.delete("/{post_id}/comments/{comment_id}")
+def delete_comment(
+    post_id: str,
+    comment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    comment = _comment_for_moderation(db, post_id, comment_id, current_user)
+    db.delete(comment)
+    db.commit()
+    return {"status": "success"}
+
+# ==========================================
+# 6. 게시물 수정 및 삭제
+# ==========================================
 class PostUpdate(BaseModel):
     content: str
     user_tags: Optional[str] = None
 
-# ==========================================
-# 🗑️ 1. 게시물 삭제 API (DELETE)
-# ==========================================
 @router.delete("/{post_id}")
 def delete_post(
     post_id: str, 
@@ -240,9 +286,6 @@ def delete_post(
     
     return {"status": "success", "message": "게시물이 삭제되었습니다."}
 
-# ==========================================
-# ✍️ 2. 게시물 수정 API (PUT)
-# ==========================================
 @router.put("/{post_id}")
 def update_post(
     post_id: str, 

@@ -5,7 +5,7 @@ import useInfiniteScroll from '../../hooks/Useinfinitescroll';
 
 const LIMIT = 5;
 
-// 💡 1. 여기서 부모가 넘겨준 onProfileClick을 받아옵니다.
+// 💡 1. 원래 코드에 있던 onProfileClick을 유지하여 매개변수로 받습니다.
 export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOpen, onEditOpen, isActive, onProfileClick }) {
   const [posts, setPosts] = useState([]);
   const [skip, setSkip] = useState(0);
@@ -101,12 +101,21 @@ export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOp
   }, []);
 
   // ==========================================
-  // 댓글 수 업데이트
+  // 댓글 수 업데이트 (증가/감소 모두 포함)
   // ==========================================
   const handleCommentCountIncrease = useCallback((postId) => {
     setPosts((prev) =>
       prev.map((p) =>
         p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p
+      )
+    );
+  }, []);
+
+  // 💡 추가된 기능: 댓글이 삭제되었을 때 피드에서 댓글 수를 실시간으로 줄여줍니다.
+  const handleCommentCountDecrease = useCallback((postId) => {
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId ? { ...p, comment_count: Math.max(0, p.comment_count - 1) } : p
       )
     );
   }, []);
@@ -145,11 +154,14 @@ export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOp
             key={post.id}
             post={post}
             onTagSearch={onTagSearch}
-            onCommentOpen={(id) => onCommentOpen(id, handleCommentCountIncrease)}
+            // 💡 수정된 부분: 댓글 추가/삭제 함수와 게시물 주인 ID를 함께 넘겨줍니다.
+            onCommentOpen={(postId, postUserId) =>
+              onCommentOpen(postId, postUserId, handleCommentCountIncrease, handleCommentCountDecrease)
+            }
             onEditOpen={onEditOpen}
             onDeleted={handleDeleted}
             onLikeToggle={handleLikeToggle}
-            // 💡 2. PostCard로 onProfileClick을 넘겨줍니다!
+            // 💡 2. 원래 코드에 있던 프로필 클릭 기능을 잃어버리지 않고 넘겨줍니다!
             onProfileClick={onProfileClick} 
           />
         ))}

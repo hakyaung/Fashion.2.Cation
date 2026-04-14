@@ -24,13 +24,23 @@ export default function LeftSidebar({ activeView, activeSort, onNavigate, onSort
           </a>
         </li>
         <li>
-            <a
-                href="#"
-                className={activeView === 'messages' ? 'active' : ''}
-                onClick={(e) => { e.preventDefault(); onNavigate('messages'); }}
-            >
-                <span>✉</span> 메시지
-            </a>
+          <a
+            href="#"
+            className={activeView === 'messages' ? 'active' : ''}
+            onClick={(e) => { e.preventDefault(); onNavigate('messages'); }}
+          >
+            <span>✉</span> 메시지
+          </a>
+        </li>
+        {/* 💡 [추가됨] 패션 평가 메뉴 */}
+        <li>
+          <a
+            href="#"
+            className={activeView === 'fashion-eval' ? 'active' : ''}
+            onClick={(e) => { e.preventDefault(); onNavigate('fashion-eval'); }}
+          >
+            <span>◇</span> 패션 평가
+          </a>
         </li>
 
         <li className="menu-title" style={{ marginTop: 30 }}>피드 필터</li>
