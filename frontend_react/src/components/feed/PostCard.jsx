@@ -2,22 +2,35 @@ import React, { useState } from 'react';
 import { API_URL, toggleLikeApi, deletePostApi } from '../../api/api';
 import { useAuth } from '../../context/Authcontext';
 
-// 💡 부모 컴포넌트에서 프로필 이동을 처리할 onProfileClick props를 추가했습니다.
 export default function PostCard({ post, onTagSearch, onCommentOpen, onEditOpen, onDeleted, onLikeToggle, onProfileClick }) {
   const { isLoggedIn, currentUserId, openAuthModal } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const isOwner = currentUserId && post.user_id === currentUserId;
+  // ==========================================
+  // 💡 데이터 매핑 부분 (콘솔에서 찾은 키값을 여기에 추가하세요!)
+  // ==========================================
+  // 예: post.user?.profile_image_url, post.author_image 등
+  const authorImage = post.user?.profile_image_url || post.author_profile_image || post.profile_image_url; 
+  const authorName = post.user?.nickname || post.author || 'Style_Creator';
+  const authorId = post.user?.id || post.user_id;
+
+  const isOwner = currentUserId && authorId === currentUserId;
   const hasImage = post.image_url && post.image_url.trim() !== '';
 
   const aiBadge = hasImage
     ? post.ai_status === 'pending' ? '분석 중' : 'AI 분석완료'
     : '텍스트 게시물';
 
-  // 💡 프로필 이미지가 없을 때 기본 이미지를 띄워주고, 전체 경로를 만들어주는 함수
+  // ==========================================
+  // 🛠️ URL 처리 로직 보강 (슬래시 '/' 누락 방지)
+  // ==========================================
   const getFullImageUrl = (url) => {
     if (!url) return "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=100";
-    return url.startsWith('http') ? url : `${API_URL}${url}`;
+    if (url.startsWith('http')) return url;
+    
+    // 백엔드에서 슬래시 없이 'uploads/...' 로 올 경우를 대비해 안전하게 조합합니다.
+    const formattedUrl = url.startsWith('/') ? url : `/${url}`;
+    return `${API_URL}${formattedUrl}`;
   };
 
   // ==========================================
@@ -31,7 +44,7 @@ export default function PostCard({ post, onTagSearch, onCommentOpen, onEditOpen,
     }
     try {
       const data = await toggleLikeApi(post.id);
-      onLikeToggle(post.id, data.status); // 부모에서 상태 업데이트
+      onLikeToggle(post.id, data.status); 
     } catch (err) {
       console.error('좋아요 오류', err);
     }
@@ -94,14 +107,12 @@ export default function PostCard({ post, onTagSearch, onCommentOpen, onEditOpen,
       {/* 헤더 */}
       <div className="post-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         
-        {/* 💡 수정된 작성자 프로필 영역 */}
         <div className="post-meta" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           
-          {/* 프로필 이미지와 이름을 하나로 묶어 클릭 가능하게 만듦 */}
           <div 
             onClick={(e) => {
-              e.stopPropagation(); // 카드 전체 클릭 이벤트 방지
-              if (onProfileClick) onProfileClick(post.user?.id || post.user_id);
+              e.stopPropagation(); 
+              if (onProfileClick && authorId) onProfileClick(authorId);
             }}
             style={{ 
               display: 'flex', 
@@ -109,10 +120,10 @@ export default function PostCard({ post, onTagSearch, onCommentOpen, onEditOpen,
               gap: '8px', 
               cursor: 'pointer' 
             }}
-            title={`${post.user?.nickname || post.author}님의 프로필 보기`}
+            title={`${authorName}님의 프로필 보기`}
           >
             <img 
-              src={getFullImageUrl(post.user?.profile_image_url)} 
+              src={getFullImageUrl(authorImage)} 
               alt="profile" 
               style={{ 
                 width: '32px', 
@@ -126,7 +137,7 @@ export default function PostCard({ post, onTagSearch, onCommentOpen, onEditOpen,
               }}
             />
             <span className="post-author" style={{ fontWeight: '600', color: 'var(--warm-black)' }}>
-              {post.user?.nickname || post.author}
+              {authorName}
             </span>
           </div>
 
@@ -164,7 +175,7 @@ export default function PostCard({ post, onTagSearch, onCommentOpen, onEditOpen,
       {/* 이미지 */}
       {hasImage && (
         <div className="post-image-container">
-          <img src={`${API_URL}${post.image_url}`} className="post-img" alt="Fashion Post" />
+          <img src={getFullImageUrl(post.image_url)} className="post-img" alt="Fashion Post" />
         </div>
       )}
 
