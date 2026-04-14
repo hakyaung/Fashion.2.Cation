@@ -128,13 +128,10 @@ def get_fashion_feed(
                 Post.created_at.desc()
             )
         elif sort_by == "nearby" and lat is not None and lng is not None:
-            # 💡 [수정] join -> outerjoin으로 변경 (위치 없는 게시글도 일단 가져오기 위함)
-            # 💡 [수정] distance_expr 정의
             distance_expr = func.sqrt(
                 func.power(Location.latitude - lat, 2) + 
                 func.power(Location.longitude - lng, 2)
             )
-            # 💡 [수정] 거리가 가까운 순으로 정렬하되, 위치 정보가 없는 글은 맨 뒤로(nulls_last)
             query = query.outerjoin(Location).order_by(
                 distance_expr.asc().nulls_last(), 
                 Post.created_at.desc()
@@ -157,6 +154,8 @@ def get_fashion_feed(
                 "content": post.content,
                 "image_url": post.image_url,
                 "author": post.user.nickname if post.user else "탈퇴한 사용자",
+                # 💡 [핵심 추가] 프론트엔드가 프로필 사진을 띄울 수 있도록 주소를 함께 넘겨줍니다!
+                "author_profile_image": post.user.profile_image_url if post.user else None,
                 "location": post.location.full_name if post.location else "지역 정보 없음",
                 "created_at": post.created_at.isoformat() if post.created_at else None,
                 "ai_status": post.ai_status,
@@ -169,7 +168,6 @@ def get_fashion_feed(
         return results
 
     except Exception as e:
-        # 💡 에러 로그 출력 (디버깅용)
         import traceback
         print(f"피드 조회 에러 상세: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"서버 에러: {str(e)}")
@@ -216,8 +214,6 @@ def get_comments(post_id: str, db: Session = Depends(get_db)):
         "created_at": c.created_at.isoformat()
     } for c in comments]
 
-
-# 💡 수정된 그릇: 이제 태그 데이터도 선택적으로 받을 수 있습니다.
 class PostUpdate(BaseModel):
     content: str
     user_tags: Optional[str] = None
@@ -229,14 +225,13 @@ class PostUpdate(BaseModel):
 def delete_post(
     post_id: str, 
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user) # 💡 1. 토큰을 까서 현재 접속한 유저를 데려옵니다.
+    current_user: User = Depends(get_current_user) 
 ):
     post = db.query(Post).filter(Post.id == post_id).first()
     
     if not post:
         raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
     
-    # 💡 2. 철통 보안: 게시물의 주인(user_id)과 현재 요청한 사람(current_user.id)이 같은지 검사!
     if post.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="본인이 작성한 글만 삭제할 수 있습니다.")
     
@@ -253,14 +248,13 @@ def update_post(
     post_id: str, 
     post_data: PostUpdate, 
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user) # 💡 1. 현재 접속한 유저 데려오기
+    current_user: User = Depends(get_current_user) 
 ):
     post = db.query(Post).filter(Post.id == post_id).first()
     
     if not post:
         raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
     
-    # 💡 2. 철통 보안: 게시물의 주인과 현재 요청한 사람이 같은지 검사!
     if post.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="본인이 작성한 글만 수정할 수 있습니다.")
     
