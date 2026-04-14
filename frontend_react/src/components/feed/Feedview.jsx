@@ -5,7 +5,8 @@ import useInfiniteScroll from '../../hooks/Useinfinitescroll';
 
 const LIMIT = 5;
 
-export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOpen, onEditOpen, isActive }) {
+// 💡 1. 여기서 부모가 넘겨준 onProfileClick을 받아옵니다.
+export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOpen, onEditOpen, isActive, onProfileClick }) {
   const [posts, setPosts] = useState([]);
   const [skip, setSkip] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -148,6 +149,8 @@ export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOp
             onEditOpen={onEditOpen}
             onDeleted={handleDeleted}
             onLikeToggle={handleLikeToggle}
+            // 💡 2. PostCard로 onProfileClick을 넘겨줍니다!
+            onProfileClick={onProfileClick} 
           />
         ))}
       </div>

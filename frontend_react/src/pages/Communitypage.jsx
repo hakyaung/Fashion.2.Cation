@@ -18,7 +18,7 @@ import AuthModal from '../components/modals/Authmodal';
 import PostModal from '../components/modals/PostModal';
 import CommentModal from '../components/modals/Commentmodal';
 import EditModal from '../components/modals/Editmodal';
-import ChatRoomModal from '../components/modals/ChatRoomModal'; // 💡 채팅 모달 임포트
+import ChatRoomModal from '../components/modals/ChatRoomModal'; 
 
 export default function CommunityPage() {
   const { isLoggedIn, openAuthModal, currentUserId } = useAuth(); 
@@ -86,6 +86,12 @@ export default function CommunityPage() {
     },
     [isLoggedIn, openAuthModal]
   );
+
+  // 💡 [추가됨] 피드에서 프로필 사진이나 이름 클릭 시 호출될 함수
+  const handleProfileClick = useCallback((userId) => {
+    if (!userId) return;
+    handleNavigate('profile', userId);
+  }, [handleNavigate]);
 
   const handleSort = useCallback((newSort) => {
     setSort(newSort);
@@ -181,6 +187,7 @@ export default function CommunityPage() {
               onTagSearch={handleTagSearch}
               onCommentOpen={handleCommentOpen}
               onEditOpen={handleEditOpen}
+              onProfileClick={handleProfileClick} // 💡 [추가됨] FeedView로 함수 전달
               isActive={activeView === 'home'}
             />
           )}
@@ -188,7 +195,7 @@ export default function CommunityPage() {
           {activeView === 'profile' && (
             <ProfileView 
               targetUserId={viewUserId} 
-              onOpenChat={handleOpenChat} // 💡 프로필 뷰에서도 중앙 집중형 채팅 오픈 함수 전달
+              onOpenChat={handleOpenChat} 
             />
           )}
 
@@ -196,7 +203,6 @@ export default function CommunityPage() {
             <MessageListView 
               currentUserId={currentUserId} 
               onRoomClick={(targetUser) => {
-                // 💡 [핵심 수정] 리스트 클릭 시 프로필로 가는 게 아니라 즉시 채팅창 열기!
                 handleOpenChat(targetUser);
               }} 
             />
@@ -235,7 +241,6 @@ export default function CommunityPage() {
         onEdited={handleEdited}
       />
 
-      {/* 💡 전역 채팅 모달: 어떤 뷰에서든 handleOpenChat만 호출하면 여기서 뜹니다. */}
       {chatModal.isOpen && (
         <ChatRoomModal 
           isOpen={chatModal.isOpen} 
