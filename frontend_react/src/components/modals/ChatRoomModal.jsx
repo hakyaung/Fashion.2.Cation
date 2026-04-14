@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { API_URL, getOrCreateChatRoom, fetchChatHistory } from '../../api/api';
+// 💡 markChatAsRead 함수를 추가로 import 합니다.
+import { API_URL, getOrCreateChatRoom, fetchChatHistory, markChatAsRead } from '../../api/api';
 
 export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUser }) {
   const [roomId, setRoomId] = useState(null);
@@ -24,26 +25,42 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
         const currentRoomId = roomData.room_id;
         if (isMounted) setRoomId(currentRoomId);
 
+        // 1. 기존 채팅 내역 불러오기
         const history = await fetchChatHistory(currentRoomId);
         if (isMounted) setMessages(history);
 
-        // 💡 주소 생성 로직 강화
+        // 💡 2. 채팅방에 들어왔으므로 지금까지 쌓인 메시지를 모두 '읽음' 처리합니다.
+        await markChatAsRead(currentRoomId, currentUserId);
+
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        // API_URL에서 http:// 또는 https:// 부분을 제거하고 호스트만 추출
         const host = API_URL.replace(/^https?:\/\//, '');
         const wsUrl = `${wsProtocol}//${host}/api/v1/chat/ws/${currentRoomId}/${currentUserId}`;
 
-        console.log("🔗 Connecting to:", wsUrl); // 터미널 콘솔(F12)에서 주소 확인용
+        console.log("🔗 Connecting to:", wsUrl);
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
         ws.onopen = () => console.log("✅ 웹소켓 서버에 연결되었습니다.");
         
-        // 상대방이 메시지를 보내거나, 내가 보낸 메시지가 서버를 거쳐 돌아올 때
         ws.onmessage = (event) => {
           if (isMounted) {
-            const newMsg = JSON.parse(event.data);
-            setMessages((prev) => [...prev, newMsg]);
+            const data = JSON.parse(event.data);
+            
+            // 💡 [핵심] 신호 종류에 따른 실시간 읽음 처리
+            if (data.type === 'read_receipt') {
+              // 상대방이 내 메시지를 읽었다는 신호가 오면, 내 화면의 모든 '안 읽음'을 '읽음'으로 변경
+              if (String(data.reader_id) !== String(currentUserId)) {
+                setMessages((prev) => prev.map(m => ({ ...m, is_read: true })));
+              }
+            } else {
+              // 일반 메시지가 온 경우 (새 메시지 수신)
+              setMessages((prev) => [...prev, data]);
+              
+              // 내가 지금 채팅방을 켜놓고 보고 있는데 상대가 메시지를 보냈다면, 즉시 읽음 처리 API를 호출
+              if (String(data.sender_id) !== String(currentUserId)) {
+                markChatAsRead(currentRoomId, currentUserId);
+              }
+            }
           }
         };
 
@@ -75,7 +92,6 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
     e.preventDefault();
     if (!inputMessage.trim() || !wsRef.current) return;
 
-    // 소켓이 열려있는지 확인 후 전송
     if (wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(inputMessage);
       setInputMessage(''); 
@@ -123,18 +139,47 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
         }}>
           {messages.map((msg, idx) => {
             const isMe = String(msg.sender_id) === String(currentUserId);
+            
             return (
-              <div key={idx} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
-                <div style={{
-                  padding: '10px 14px',
-                  borderRadius: isMe ? '16px 16px 0 16px' : '16px 16px 16px 0',
-                  backgroundColor: isMe ? 'var(--rust)' : '#f0f0f0',
-                  color: isMe ? '#fff' : '#333',
-                  fontSize: '14px',
-                  lineHeight: '1.5',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              // 💡 말풍선과 읽음 표시를 나란히 배치하기 위한 구조 수정
+              <div key={idx} style={{ 
+                display: 'flex', 
+                justifyContent: isMe ? 'flex-end' : 'flex-start' 
+              }}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'flex-end', 
+                  gap: '6px', 
+                  maxWidth: '75%' 
                 }}>
-                  {msg.content}
+                  
+                  {/* 💡 내가 보낸 메시지인 경우 말풍선 왼쪽에 '읽음/안 읽음' 표시 */}
+                  {isMe && (
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: msg.is_read ? '#999' : 'var(--rust)', 
+                      whiteSpace: 'nowrap',
+                      fontWeight: msg.is_read ? 'normal' : 'bold',
+                      marginBottom: '2px'
+                    }}>
+                      {msg.is_read ? '읽음' : '안 읽음'}
+                    </span>
+                  )}
+
+                  {/* 말풍선 본체 */}
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: isMe ? '16px 16px 0 16px' : '16px 16px 16px 0',
+                    backgroundColor: isMe ? 'var(--rust)' : '#f0f0f0',
+                    color: isMe ? '#fff' : '#333',
+                    fontSize: '14px',
+                    lineHeight: '1.5',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                    wordBreak: 'break-word'
+                  }}>
+                    {msg.content}
+                  </div>
+
                 </div>
               </div>
             );

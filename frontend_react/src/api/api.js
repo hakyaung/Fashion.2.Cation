@@ -307,3 +307,16 @@ export async function searchUsersApi(keyword) {
   if (!res.ok) throw new Error('유저 검색 실패');
   return res.json();
 }
+
+// 💡 채팅방 읽음 처리 API
+export const markChatAsRead = async (roomId, currentUserId) => {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/chat/room/${roomId}/read?current_user_id=${currentUserId}`, {
+      method: 'PUT',
+    });
+    if (!res.ok) throw new Error('읽음 처리 실패');
+    return await res.json();
+  } catch (error) {
+    console.error(error);
+  }
+};
