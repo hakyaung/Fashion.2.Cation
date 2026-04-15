@@ -1,92 +1,108 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { updateProfileApi, uploadProfileImageApi, API_URL } from '../../api/api';
 import { useAuth } from '../../context/Authcontext'; 
-import imageCompression from 'browser-image-compression'; // 💡 압축 라이브러리 불러오기
+import imageCompression from 'browser-image-compression'; 
 
 export default function ProfileEditModal({ isOpen, user, onClose, onUpdated }) {
   const { currentUserId } = useAuth();
-  const [nickname, setNickname] = useState(user?.nickname || '');
-  const [bio, setBio] = useState(user?.bio || '');
+  const [nickname, setNickname] = useState('');
+  const [bio, setBio] = useState('');
   const [submitting, setSubmitting] = useState(false);
   
-  const [profileImageUrl, setProfileImageUrl] = useState(user?.profile_image_url || ''); 
+  const [profileImageUrl, setProfileImageUrl] = useState(''); 
   const [previewUrl, setPreviewUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null); 
+  
   const fileInputRef = useRef(null);
 
+  // 모달이 열리거나 user 정보가 바뀔 때마다 입력창 초기화
   useEffect(() => {
-    if (user?.profile_image_url) {
-      setProfileImageUrl(user.profile_image_url);
-      const url = user.profile_image_url;
-      setPreviewUrl(url.startsWith('http') ? url : `${API_URL}${url}`);
-    } else {
-      setPreviewUrl("https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=300");
+    if (user && isOpen) {
+      setNickname(user.nickname || '');
+      setBio(user.bio || '');
+      setSelectedFile(null); // 모달 열 때 이전 선택 파일 찌꺼기 비우기
+
+      if (user.profile_image_url) {
+        setProfileImageUrl(user.profile_image_url);
+        const url = user.profile_image_url;
+        // 💡 [캐시 방지 트릭] 브라우저가 옛날 사진을 보여주지 못하도록 주소 뒤에 현재 시간을 붙입니다!
+        setPreviewUrl(url.startsWith('http') ? url : `${API_URL}${url}?t=${Date.now()}`);
+      } else {
+        setPreviewUrl("https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=300");
+      }
     }
-  }, [user]);
+  }, [user, isOpen]);
 
   if (!isOpen) return null;
 
   // ==========================================
-  // 💡 프로필 이미지 압축 및 업로드 핸들러
+  // 💡 사진을 선택했을 때: 업로드 하지 말고 미리보기만 띄우기!
   // ==========================================
   const handleImageChange = async (e) => {
     let file = e.target.files[0];
     if (!file) return;
 
     try {
-      setSubmitting(true); // 압축 및 업로드 중 클릭 방지
+      // 1. 선택한 이미지를 화면에 띄워주기 위해 임시 주소 생성
+      const tempUrl = URL.createObjectURL(file);
+      setPreviewUrl(tempUrl);
 
-      // 💡 1. 이미지 압축 로직 (500KB 이상일 때만 실행)
+      let fileToUpload = file;
+
+      // 2. 이미지 압축 로직 (500KB 이상일 때만 실행)
       if (file.size > 500 * 1024) {
         const options = {
-          maxSizeMB: 0.8, // 프로필은 0.8MB면 아주 충분합니다.
-          maxWidthOrHeight: 1024, // 프로필용이므로 1024px로 리사이징
+          maxSizeMB: 0.8,
+          maxWidthOrHeight: 1024,
           useWebWorker: true,
         };
         
         const compressedBlob = await imageCompression(file, options);
-        const ext = file.name.split('.').pop() || 'jpg';
-        file = new File([compressedBlob], `compressed_profile_${Date.now()}.${ext}`, {
+        // 압축된 Blob을 원본 파일 이름으로 다시 예쁘게 포장합니다.
+        fileToUpload = new File([compressedBlob], file.name, {
           type: compressedBlob.type,
         });
         
-        console.log(`프로필 원본: ${(e.target.files[0].size / 1024 / 1024).toFixed(2)}MB -> 압축 후: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+        console.log(`프로필 압축 완료: ${(fileToUpload.size / 1024 / 1024).toFixed(2)}MB`);
       }
 
-      // 2. 압축된 파일로 로컬 미리보기 즉시 갱신
-      setPreviewUrl(URL.createObjectURL(file));
+      // 3. 압축이 끝난 파일을 'selectedFile' 통에 담아두기 (나중에 저장 버튼 누르면 보냄)
+      setSelectedFile(fileToUpload);
 
-      // 3. 서버로 압축된 파일 전송
-      const result = await uploadProfileImageApi(file);
-      
-      setProfileImageUrl(result.profile_image_url); 
-      const newUrl = result.profile_image_url;
-      setPreviewUrl(newUrl.startsWith('http') ? newUrl : `${API_URL}${newUrl}`);
-      
-      alert('프로필 이미지가 성공적으로 업로드되었습니다! ✦');
     } catch (err) {
-      alert('이미지 처리/업로드 중 오류가 발생했습니다: ' + err.message);
-      // 실패 시 롤백
-      setPreviewUrl(user?.profile_image_url ? (user.profile_image_url.startsWith('http') ? user.profile_image_url : `${API_URL}${user.profile_image_url}`) : "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=300");
-    } finally {
-      setSubmitting(false);
+      alert('이미지 처리 중 오류가 발생했습니다: ' + err.message);
     }
   };
 
+  // ==========================================
+  // 💡 저장 버튼을 눌렀을 때: 사진 업로드 -> 프로필 정보 수정
+  // ==========================================
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    
     try {
+      let finalImageUrl = profileImageUrl; // 기본값은 기존 사진 주소
+
+      // 1. 새로 선택한 사진(selectedFile)이 있다면 지금 서버로 업로드!
+      if (selectedFile) {
+        const result = await uploadProfileImageApi(selectedFile);
+        // 💡 만약 서버 응답 키값이 다를 경우를 대비해 확실하게 URL을 낚아챕니다.
+        finalImageUrl = result.profile_image_url || result.image_url || result.url || finalImageUrl;
+      }
+
+      // 2. 새 주소(또는 기존 주소)와 텍스트를 묶어서 내 프로필 업데이트!
       await updateProfileApi({ 
         nickname, 
         bio, 
-        profile_image_url: profileImageUrl 
+        profile_image_url: finalImageUrl 
       });
       
       alert('프로필이 성공적으로 변경되었습니다! ✨');
       onUpdated(); 
       onClose();
     } catch (err) {
-      alert(err.message);
+      alert('저장 중 오류가 발생했습니다: ' + err.message);
     } finally {
       setSubmitting(false);
     }
