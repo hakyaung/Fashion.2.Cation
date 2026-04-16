@@ -4,6 +4,7 @@ import { useEffect, useCallback } from 'react';
  * 스크롤이 하단 200px 이내로 내려오면 onLoadMore를 호출합니다.
  * @param {function} onLoadMore - 더 불러오는 콜백
  * @param {boolean} enabled - 현재 홈 뷰일 때만 true
+ * 무한 스크롤을 구현해 줍니다.
  */
 export default function useInfiniteScroll(onLoadMore, enabled) {
   const handleScroll = useCallback(() => {

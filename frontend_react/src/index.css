@@ -19,21 +19,16 @@ body {
   background: var(--cream);
   color: var(--warm-black);
   overflow-x: hidden;
-  cursor: none;
 }
-
-/* Custom Cursor */
-.cursor { position: fixed; width: 12px; height: 12px; background: var(--rust); border-radius: 50%; pointer-events: none; z-index: 9999; transition: transform 0.15s ease, background 0.2s ease; transform: translate(-50%, -50%); }
-.cursor-follower { position: fixed; width: 40px; height: 40px; border: 1px solid var(--rust); border-radius: 50%; pointer-events: none; z-index: 9998; transition: transform 0.4s ease, opacity 0.2s ease; transform: translate(-50%, -50%); opacity: 0.5; }
 
 /* Top Navigation */
 .top-nav { position: fixed; top: 0; left: 0; right: 0; height: 64px; background: var(--off-white); border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; padding: 0 40px; z-index: 100; }
-.nav-logo { font-family: 'Playfair Display', serif; font-size: 20px; font-style: italic; color: var(--warm-black); text-decoration: none; font-weight: 600; cursor: none; }
+.nav-logo { font-family: 'Playfair Display', serif; font-size: 20px; font-style: italic; color: var(--warm-black); text-decoration: none; font-weight: 600; cursor: pointer; }
 .nav-center { flex: 1; display: flex; justify-content: center; padding: 0 40px; }
 .search-bar { display: flex; align-items: center; background: rgba(26,22,18,0.04); border-radius: 20px; padding: 8px 16px; width: 100%; max-width: 500px; border: 1px solid transparent; transition: border-color 0.3s ease; }
 .search-bar:focus-within { border-color: var(--rust); background: white; }
 .search-bar input { border: none; background: transparent; outline: none; width: 100%; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--warm-black); }
-.btn-login { background: var(--rust); color: white; padding: 8px 24px; border-radius: 20px; text-decoration: none; font-size: 12px; letter-spacing: 1px; font-weight: 500; text-transform: uppercase; transition: background 0.3s; cursor: none; border: none; }
+.btn-login { background: var(--rust); color: white; padding: 8px 24px; border-radius: 20px; text-decoration: none; font-size: 12px; letter-spacing: 1px; font-weight: 500; text-transform: uppercase; transition: background 0.3s; cursor: pointer; border: none; }
 .btn-login:hover { background: #A03518; }
 
 /* Layout */
@@ -44,13 +39,13 @@ body {
 /* Left Sidebar */
 .sidebar-menu { list-style: none; }
 .menu-title { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: rgba(26,22,18,0.4); margin-bottom: 12px; padding-left: 12px; }
-.sidebar-menu a { display: flex; align-items: center; padding: 10px 12px; color: var(--warm-black); text-decoration: none; font-size: 14px; border-radius: 8px; transition: background 0.2s; margin-bottom: 4px; cursor: none; }
+.sidebar-menu a { display: flex; align-items: center; padding: 10px 12px; color: var(--warm-black); text-decoration: none; font-size: 14px; border-radius: 8px; transition: background 0.2s; margin-bottom: 4px; cursor: pointer; }
 .sidebar-menu a span { margin-right: 12px; color: var(--rust); font-size: 16px; }
 .sidebar-menu a:hover, .sidebar-menu a.active { background: rgba(26,22,18,0.05); font-weight: 500; color: var(--rust); font-weight: 700; }
 
 /* Center Feed */
 .feed-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color); }
-.feed-filters button { background: transparent; border: none; font-family: 'DM Sans', sans-serif; font-size: 14px; color: rgba(26,22,18,0.5); cursor: none; margin-left: 16px; transition: color 0.3s; }
+.feed-filters button { background: transparent; border: none; font-family: 'DM Sans', sans-serif; font-size: 14px; color: rgba(26,22,18,0.5); cursor: pointer; margin-left: 16px; transition: color 0.3s; }
 .feed-filters button.active { color: var(--rust); font-weight: 600; background: var(--warm-black); color: white; }
 
 /* Post Card */
@@ -64,7 +59,7 @@ body {
 .post-image-container { width: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 16px; background: var(--cream); }
 .post-img { width: 100%; max-height: 600px; object-fit: contain; display: block; }
 .post-actions { display: flex; gap: 16px; padding-top: 12px; border-top: 1px solid var(--border-color); }
-.action-btn { background: transparent; border: none; font-size: 13px; color: rgba(26,22,18,0.6); display: flex; align-items: center; gap: 6px; cursor: none; transition: color 0.2s; font-family: 'DM Sans', sans-serif; }
+.action-btn { background: transparent; border: none; font-size: 13px; color: rgba(26,22,18,0.6); display: flex; align-items: center; gap: 6px; cursor: pointer; transition: color 0.2s; font-family: 'DM Sans', sans-serif; }
 .action-btn:hover { color: var(--rust); }
 
 /* Right Sidebar Widgets */
@@ -77,29 +72,29 @@ body {
 .trend-rank { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--gold); font-style: italic; }
 .trend-details h4 { font-size: 13px; color: var(--warm-black); font-weight: 500; margin-bottom: 2px; }
 .trend-details p { font-size: 11px; color: rgba(26,22,18,0.5); }
-.btn-join { background: var(--off-white); border: 1px solid var(--border-color); padding: 4px 12px; border-radius: 16px; font-size: 11px; color: var(--warm-black); cursor: none; transition: all 0.2s; font-family: 'DM Sans', sans-serif; }
+.btn-join { background: var(--off-white); border: 1px solid var(--border-color); padding: 4px 12px; border-radius: 16px; font-size: 11px; color: var(--warm-black); cursor: pointer; transition: all 0.2s; font-family: 'DM Sans', sans-serif; }
 .btn-join:hover { background: var(--rust); color: white; border-color: var(--rust); }
 .ai-widget { background: linear-gradient(135deg, var(--charcoal), var(--warm-black)); color: var(--off-white); border: none; }
 .ai-widget .widget-title { color: var(--gold); }
 .ai-widget p strong { color: var(--rust); }
 .loading-indicator { text-align: center; padding: 20px; font-size: 12px; color: rgba(26,22,18,0.5); letter-spacing: 2px; text-transform: uppercase; }
 
-.btn-write { background: var(--warm-black); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-size: 13px; font-weight: 600; letter-spacing: 1px; cursor: none; transition: background 0.3s; text-transform: uppercase; font-family: 'DM Sans', sans-serif; }
+.btn-write { background: var(--warm-black); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-size: 13px; font-weight: 600; letter-spacing: 1px; cursor: pointer; transition: background 0.3s; text-transform: uppercase; font-family: 'DM Sans', sans-serif; }
 .btn-write:hover { background: var(--rust); }
 
 /* Modals */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; backdrop-filter: blur(5px); }
 .modal-overlay.active { display: flex; opacity: 1; }
 .auth-modal-content { background: var(--off-white); width: 100%; max-width: 400px; border-radius: 12px; padding: 40px; position: relative; }
-.modal-close { position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: none; color: var(--warm-black); background: none; border: none; line-height: 1; }
+.modal-close { position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: var(--warm-black); background: none; border: none; line-height: 1; }
 .auth-form { display: flex; flex-direction: column; gap: 16px; }
 .auth-form input, .auth-form textarea, .auth-form select { padding: 14px; background: white; border: 1px solid rgba(0,0,0,0.1); font-family: 'DM Sans', sans-serif; border-radius: 4px; color: var(--warm-black); font-size: 14px; }
 .auth-form textarea { resize: vertical; }
 .auth-form input:focus, .auth-form textarea:focus, .auth-form select:focus { outline: none; border-color: var(--rust); }
-.auth-form button[type="submit"] { background: var(--rust); color: white; border: none; padding: 16px; font-weight: 500; letter-spacing: 2px; cursor: none; border-radius: 4px; transition: background 0.3s; font-family: 'DM Sans', sans-serif; font-size: 14px; }
+.auth-form button[type="submit"] { background: var(--rust); color: white; border: none; padding: 16px; font-weight: 500; letter-spacing: 2px; cursor: pointer; border-radius: 4px; transition: background 0.3s; font-family: 'DM Sans', sans-serif; font-size: 14px; }
 .auth-form button[type="submit"]:hover { background: #A03518; }
 .auth-toggle { margin-top: 20px; text-align: center; font-size: 12px; color: #666; }
-.auth-toggle a { color: var(--rust); font-weight: bold; text-decoration: none; cursor: none; }
+.auth-toggle a { color: var(--rust); font-weight: bold; text-decoration: none; cursor: pointer; }
 
 /* Profile View */
 #view-profile { background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 40px; min-height: 800px; }
@@ -108,26 +103,26 @@ body {
 .profile-avatar img { width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 2px solid var(--off-white); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 .profile-info { flex: 1; }
 .profile-username { font-family: 'Playfair Display', serif; font-size: 28px; color: var(--warm-black); display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-.settings-icon { font-size: 20px; color: rgba(26,22,18,0.5); cursor: none; transition: color 0.2s; }
+.settings-icon { font-size: 20px; color: rgba(26,22,18,0.5); cursor: pointer; transition: color 0.2s; }
 .settings-icon:hover { color: var(--warm-black); }
 .profile-name { font-weight: 600; font-size: 15px; margin-bottom: 16px; color: var(--warm-black); }
 .profile-stats { display: flex; gap: 24px; list-style: none; margin-bottom: 16px; font-size: 15px; color: var(--warm-black); }
 .profile-stats strong { font-weight: 600; }
 .profile-bio { font-size: 14px; color: var(--rust); margin-bottom: 24px; font-weight: 500; }
 .profile-actions { display: flex; gap: 12px; }
-.btn-profile-action { background: var(--off-white); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; color: var(--warm-black); cursor: none; flex: 1; transition: background 0.2s; }
+.btn-profile-action { background: var(--off-white); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; color: var(--warm-black); cursor: pointer; flex: 1; transition: background 0.2s; }
 .btn-profile-action:hover { background: rgba(26,22,18,0.05); }
 .profile-highlights { display: flex; gap: 24px; margin-bottom: 40px; overflow-x: auto; padding-bottom: 10px; }
 .profile-highlights::-webkit-scrollbar { height: 4px; }
 .profile-highlights::-webkit-scrollbar-thumb { background: rgba(26,22,18,0.1); border-radius: 4px; }
-.highlight-item { display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: none; }
+.highlight-item { display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; }
 .highlight-circle { width: 70px; height: 70px; border-radius: 50%; background: var(--cream); border: 1px solid rgba(26,22,18,0.1); padding: 2px; }
 .highlight-item span { font-size: 11px; font-weight: 500; letter-spacing: 0.5px; }
 .profile-tabs { display: flex; justify-content: center; border-top: 1px solid var(--border-color); margin-bottom: 20px; }
-.profile-tabs .tab { padding: 16px 24px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: rgba(26,22,18,0.4); cursor: none; border-top: 1px solid transparent; margin-top: -1px; transition: all 0.2s; }
+.profile-tabs .tab { padding: 16px 24px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: rgba(26,22,18,0.4); cursor: pointer; border-top: 1px solid transparent; margin-top: -1px; transition: all 0.2s; }
 .profile-tabs .tab.active { color: var(--warm-black); font-weight: 600; border-top-color: var(--warm-black); }
 .profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
-.grid-item { aspect-ratio: 1; overflow: hidden; position: relative; background: var(--cream); cursor: none; }
+.grid-item { aspect-ratio: 1; overflow: hidden; position: relative; background: var(--cream); cursor: pointer; }
 .grid-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
 .grid-item:hover img { transform: scale(1.05); }
 .grid-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; color: white; font-weight: 600; gap: 16px; }
@@ -350,7 +345,6 @@ body {
    📱 모바일 반응형
    ========================================== */
 @media (max-width: 768px) {
-  .cursor, .cursor-follower { display: none !important; }
   body { cursor: auto !important; overflow-x: hidden !important; }
 
   .top-nav { padding: 0 12px !important; height: 54px !important; gap: 8px !important; }
@@ -402,18 +396,18 @@ body {
 
   .modal-overlay {
     align-items: flex-end !important; /* 아래에서 위로 올라오는 형태 유지 */
-    padding-bottom: 75px !important; /* 💡 하단 바 높이(65px)보다 조금 더 여유 있게(75px) 위로 올림 */
+    padding-bottom: 75px !important; /* 하단 바 높이보다 여유있게 */
   }
 
   .auth-modal-content, 
   .post-modal-content, 
-  .chat-modal-content { /* 채팅 모달 클래스명이 다를 수 있으니 확인 필요 */
-    width: 94% !important; /* 화면 양옆에 살짝 여백을 주어 더 깔끔하게 */
+  .chat-modal-content {
+    width: 94% !important;
     margin: 0 auto !important;
-    border-radius: 20px !important; /* 하단도 둥글게 처리하여 공중에 떠 있는 느낌 부여 */
-    max-height: 80vh !important; /* 화면을 너무 많이 가리지 않게 조절 */
-    padding-bottom: 24px !important; /* 하단 내부 여백 */
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.2) !important; /* 위쪽으로 그림자 추가 */
+    border-radius: 20px !important;
+    max-height: 80vh !important;
+    padding-bottom: 24px !important;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.2) !important;
   }
 
   #commentModal .auth-modal-content { height: auto !important; max-height: 80vh !important; }
@@ -425,7 +419,7 @@ body {
     bottom: 0 !important;
     left: 0 !important;
     width: 100% !important;
-    height: 65px !important; /* 높이를 조금 더 여유있게 조정 */
+    height: 65px !important;
     background: rgba(250, 248, 244, 0.98) !important;
     backdrop-filter: blur(15px) !important;
     -webkit-backdrop-filter: blur(15px) !important;
@@ -438,7 +432,7 @@ body {
   }
 
   .mobile-nav button {
-    flex: 1 !important; /* 5개 버튼이 정확히 1/5씩 차지 */
+    flex: 1 !important;
     background: none !important;
     border: none !important;
     font-size: 10px !important;
@@ -453,11 +447,11 @@ body {
   }
 
   .mobile-nav button span {
-    font-size: 22px !important; /* 아이콘 크기 통일 */
+    font-size: 22px !important;
   }
 
   .mobile-nav .post-btn-inline {
-    color: var(--rust) !important; /* 포인트 컬러 적용 */
+    color: var(--rust) !important;
     font-weight: 600 !important;
   }
 
@@ -469,23 +463,23 @@ body {
     height: 26px;
     background: var(--rust);
     color: white !important;
-    border-radius: 8px; /* 둥근 사각형 스타일 */
+    border-radius: 8px;
     font-size: 20px !important;
     margin-bottom: 2px;
   }
 
-  #postModal.modal-overlay, /* 만약 id가 postModal이라면 */
+  #postModal.modal-overlay,
   .modal-overlay:has(#post-modal-content) {
     align-items: flex-end !important;
-    padding-bottom: 75px !important; /* 하단바(65px) + 여유(10px) */
+    padding-bottom: 75px !important;
   }
 
   #post-modal-content {
     width: 96% !important;
-    max-height: 85vh !important; /* 화면 높이의 85%까지 허용 */
+    max-height: 85vh !important;
     margin: 0 auto !important;
     border-radius: 20px !important;
-    overflow-y: auto !important; /* 내용이 많으면 내부 스크롤 생성 */
+    overflow-y: auto !important;
     padding: 24px 20px !important;
     box-shadow: 0 -10px 25px rgba(0,0,0,0.2) !important;
   }
@@ -503,23 +497,21 @@ body {
     margin-top: 10px !important;
     background: var(--rust) !important;
     border-radius: 12px !important;
-    position: sticky; /* 💡 스크롤을 내려도 버튼이 보이게 하고 싶다면 사용 */
+    position: sticky;
     bottom: 0;
   }
 
   #postModal .auth-modal-content { border-radius: 20px !important; margin-bottom: 90px !important; max-height: 75vh !important; padding-bottom: 30px !important; }
   #commentModal .auth-modal-content { padding-bottom: 100px !important; max-height: 85vh !important; }
 
-  /* 2. 채팅 모달 전용 높이 및 너비 조절 */
   #chat-room-modal-content {
     width: 94% !important;
-    height: 70vh !important; /* 💡 고정 600px 대신 화면 높이의 70%로 조절하여 키보드 대응 */
+    height: 70vh !important;
     margin: 0 auto !important;
     border-radius: 20px !important;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.15) !important;
   }
 
-  /* 3. 입력창 터치 영역 확보 */
   #chat-room-modal-content form {
     padding: 10px 15px 15px 15px !important;
   }
