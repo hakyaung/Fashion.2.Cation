@@ -9,6 +9,11 @@ import io
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
+# ==========================================
+# 💡 1. API 서버 생성 (반드시 미들웨어 추가보다 먼저 와야 합니다!)
+# ==========================================
+app = FastAPI(title="패션 멀티태스크 감정 AI")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], # 실무에선 특정 주소만 허용하지만, 개발 중엔 "*"로 열어둬
@@ -16,9 +21,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 1. API 서버 생성
-app = FastAPI(title="패션 멀티태스크 감정 AI")
 
 # 2. 하드웨어 & 환경 세팅 (Mac MPS 지원 추가)
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")

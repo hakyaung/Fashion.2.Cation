@@ -3,13 +3,14 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 import uuid
 import os
+import requests # 💡 [추가됨] AI 서버와 통신하기 위한 무전기 모듈
 from pydantic import BaseModel
 from sqlalchemy import func
 
 from app.db.session import get_db
 from app.models.models import Post, PostTag, User, Location, Like, Comment
-from app.services.ai_gateway import send_to_ai_worker
 from app.api.deps import get_current_user
+# from app.services.ai_gateway import send_to_ai_worker # 💡 기존의 가짜 무전기는 이제 사용하지 않습니다!
 
 router = APIRouter()
 UPLOAD_DIR = "uploads"
@@ -30,7 +31,7 @@ def get_current_user_optional(request: Request, db: Session = Depends(get_db)):
         return None
 
 # ==========================================
-# 1. 게시글 업로드 API
+# 1. 게시글 업로드 API & AI 자동 분석
 # ==========================================
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def create_fashion_post(
@@ -44,6 +45,7 @@ async def create_fashion_post(
     image_url = ""
     file_path = ""
     
+    # 1. 사진 파일 저장 로직
     if file:
         file_extension = file.filename.split(".")[-1].lower()
         if file_extension not in ["jpg", "jpeg", "png"]:
@@ -58,6 +60,7 @@ async def create_fashion_post(
         image_url = f"/static/{file_name}"
 
     try:
+        # 2. DB에 일단 게시글 내용 껍데기 생성 (상태는 pending)
         new_post = Post(
             user_id=current_user.id,
             image_url=image_url,
@@ -66,8 +69,9 @@ async def create_fashion_post(
             ai_status="pending" if image_url else "text_only"
         )
         db.add(new_post)
-        db.flush()
+        db.flush() # ID 발급을 위해 임시 저장
 
+        # 3. 유저가 직접 입력한 태그 저장
         if user_tags:
             tag_list = list(set([t.strip() for t in user_tags.split(",") if t.strip()]))
             for t_name in tag_list:
@@ -76,8 +80,52 @@ async def create_fashion_post(
 
         db.commit()
 
-        if image_url:
-            send_to_ai_worker(str(new_post.id), image_url)
+        # ==========================================
+        # 🤖 4. 대망의 AI 서버 통신 (무전기 작동!)
+        # ==========================================
+        if image_url and os.path.exists(file_path):
+            try:
+                # 방금 저장한 사진을 열어서 AI 서버(8001)로 POST 전송
+                with open(file_path, "rb") as f:
+                    ai_response = requests.post("http://localhost:8001/predict", files={"file": f})
+                
+                # AI가 정상적으로 답변을 줬다면?
+                if ai_response.status_code == 200:
+                    ai_data = ai_response.json()
+                    
+                    if ai_data.get("status") == "success":
+                        new_post.ai_status = "completed" # 상태 업데이트!
+                        
+                        # AI가 보내준 결과 3가지를 추출
+                        ai_tags = [
+                            ai_data.get("category"), 
+                            ai_data.get("color"), 
+                            ai_data.get("style")
+                        ]
+                        confidence = ai_data.get("confidence", 0.0)
+                        
+                        # 추출한 결과를 태그(PostTag)로 DB에 추가 저장
+                        for tag_name in ai_tags:
+                            if tag_name and tag_name != "unknown":
+                                db_tag = PostTag(
+                                    post_id=new_post.id, 
+                                    tag_name=tag_name, 
+                                    is_ai_generated=True,
+                                    confidence_score=confidence
+                                )
+                                db.add(db_tag)
+                    else:
+                        # 옷이 아니거나 흔들린 사진 (신뢰도 70% 미만 컷)
+                        new_post.ai_status = "failed"
+                else:
+                    new_post.ai_status = "failed"
+            
+            except Exception as e:
+                print(f"🚨 AI 서버 통신 에러 발생: {e}")
+                new_post.ai_status = "failed"
+
+            # AI 분석 결과 및 태그들 최종 확정 저장
+            db.commit()
 
         return {"status": "success", "post_id": new_post.id}
 
@@ -147,7 +195,6 @@ def get_fashion_feed(
                 "content": post.content,
                 "image_url": post.image_url,
                 "author": post.user.nickname if post.user else "탈퇴한 사용자",
-                # 💡 [유지됨] 프로필 사진 출력 기능
                 "author_profile_image": post.user.profile_image_url if post.user else None,
                 "location": post.location.full_name if post.location else "지역 정보 없음",
                 "created_at": post.created_at.isoformat() if post.created_at else None,
@@ -155,7 +202,7 @@ def get_fashion_feed(
                 "is_liked": is_liked,
                 "like_count": len(post.likes),
                 "comment_count": len(post.comments),
-                "tags": [f"#{tag.tag_name}" for tag in post.tags]
+                "tags": [f"#{tag.tag_name}" for tag in post.tags] # 💡 여기서 AI 태그도 같이 나갑니다!
             })
         
         return results
@@ -166,7 +213,7 @@ def get_fashion_feed(
         raise HTTPException(status_code=500, detail=f"서버 에러: {str(e)}")
 
 # ==========================================
-# 3. 좋아요 토글 & 강제 동기화 (💡 추가됨)
+# 3. 좋아요 토글 & 강제 동기화
 # ==========================================
 @router.post("/{post_id}/like/ensure")
 def ensure_like(post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -208,14 +255,14 @@ def get_comments(post_id: str, db: Session = Depends(get_db)):
     comments = db.query(Comment).options(joinedload(Comment.user)).filter(Comment.post_id == post_id).order_by(Comment.created_at.asc()).all()
     return [{
         "id": c.id,
-        "user_id": str(c.user_id), # 💡 [추가됨] 프론트엔드 권한 체크용
+        "user_id": str(c.user_id),
         "author": c.user.nickname if c.user else "탈퇴한 사용자",
         "content": c.content,
         "created_at": c.created_at.isoformat()
     } for c in comments]
 
 # ==========================================
-# 5. 댓글 수정 및 삭제 (💡 추가됨)
+# 5. 댓글 수정 및 삭제
 # ==========================================
 def _comment_for_moderation(db: Session, post_id: str, comment_id: int, current_user: User) -> Comment:
     comment = db.query(Comment).filter(Comment.id == comment_id, Comment.post_id == post_id).first()
