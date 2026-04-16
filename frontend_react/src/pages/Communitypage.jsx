@@ -1,9 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react'; 
 import { useAuth } from '../context/Authcontext';
 
-// 훅 경로
-import useCursor from '../hooks/Usecursor';
-
 // 레이아웃 및 뷰
 import TopNav from '../components/layout/Topnav';
 import LeftSidebar from '../components/layout/Leftsidebar';
@@ -23,7 +20,6 @@ import ChatRoomModal from '../components/modals/ChatRoomModal';
 
 export default function CommunityPage() {
   const { isLoggedIn, openAuthModal, currentUserId } = useAuth(); 
-  const { cursorRef, followerRef } = useCursor();
 
   // ==========================================
   // 뷰 상태
@@ -166,9 +162,6 @@ export default function CommunityPage() {
 
   return (
     <>
-      <div className="cursor" ref={cursorRef} />
-      <div className="cursor-follower" ref={followerRef} />
-
       <TopNav
         searchKeyword={searchKeyword}
         onSearchChange={handleSearchChange}
