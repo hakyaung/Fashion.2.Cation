@@ -1,0 +1,5 @@
+# 도커에 안 넣어도 되는 무거운 폴더/파일들
+venv/
+__pycache__/
+*.pyc
+.DS_Store
