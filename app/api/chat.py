@@ -13,6 +13,8 @@ from sqlalchemy import or_, desc
 # 💡 [추가됨] 무전기(알림 발신기) 가져오기
 from app.core.notifier import notifier
 
+from app.core.fcm import send_fcm_notification
+
 router = APIRouter()
 
 # ==========================================
@@ -100,6 +102,15 @@ async def websocket_chat(websocket: WebSocket, room_id: str, user_id: str):
                     str(target_user_id), 
                     "새로운 메시지 💬", 
                     f"{sender.nickname}: {data}"
+                )
+
+            target_user = db.query(User).filter(User.id == target_user_id).first()
+            if target_user and target_user.fcm_token:
+                # 비동기(async) 함수가 아니므로 그대로 실행합니다
+                send_fcm_notification(
+                    fcm_token=target_user.fcm_token,
+                    title="새로운 메시지 💬",
+                    body=f"{sender.nickname}: {data}"
                 )
             
     except WebSocketDisconnect:

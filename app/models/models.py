@@ -28,9 +28,12 @@ class User(Base):
     nickname = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
     
-    # 💡 새롭게 추가된 프로필 필드
+    # 💡 프로필 필드
     bio = Column(Text, nullable=True)
     profile_image_url = Column(Text, nullable=True)
+    
+    # 💡 [핵심 추가] FCM 푸시 알림용 토큰 저장 칸
+    fcm_token = Column(String, nullable=True) 
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -151,5 +154,3 @@ class Message(Base):
 
     room = relationship("ChatRoom", back_populates="messages")
     sender = relationship("User")
-
-    

@@ -41,6 +41,10 @@ class UserProfileUpdate(BaseModel):
     bio: Optional[str] = None
     profile_image_url: Optional[str] = None
 
+# 💡 [새로 추가] FCM 토큰 요청 규격
+class FCMTokenRequest(BaseModel):
+    fcm_token: str
+
 # ==========================================
 # 💡 인증 의존성 함수
 # ==========================================
@@ -120,7 +124,7 @@ def get_user_profile(
     if not target_user:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
     
-    # 💡 신규 추가: 해당 유저의 전체 게시물 개수를 DB에서 직접 셉니다.
+    # 해당 유저의 전체 게시물 개수를 DB에서 직접 셉니다.
     posts_count = db.query(Post).filter(Post.user_id == user_id).count()
 
     followers_count = db.query(Follow).filter(Follow.following_id == user_id).count()
@@ -139,7 +143,7 @@ def get_user_profile(
         "nickname": target_user.nickname,
         "bio": target_user.bio,
         "profile_image_url": target_user.profile_image_url,
-        "posts_count": posts_count,    # 💡 계산된 게시물 수를 반환합니다.
+        "posts_count": posts_count,    
         "followers_count": followers_count,
         "following_count": following_count,
         "is_following": is_following
@@ -211,7 +215,6 @@ def toggle_follow(target_user_id: UUID, db: Session = Depends(get_db), current_u
         db.commit()
         return {"status": "followed"}
 
-        
 # ==========================================
 # 🔍 유저 검색 API (@ 검색용)
 # ==========================================
@@ -241,3 +244,16 @@ def search_users(q: str, db: Session = Depends(get_db)):
         } 
         for u in users
     ]
+
+# ==========================================
+# 🔔 [새로 추가] FCM 토큰 저장 API
+# ==========================================
+@router.post("/fcm-token")
+async def update_fcm_token(
+    request: FCMTokenRequest, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    current_user.fcm_token = request.fcm_token
+    db.commit()
+    return {"status": "success", "message": "FCM 토큰이 성공적으로 저장되었습니다."}
