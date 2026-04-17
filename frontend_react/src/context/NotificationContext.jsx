@@ -43,7 +43,13 @@ export const NotificationProvider = ({ children }) => {
     //const ws = new WebSocket(`ws://localhost:8000/ws/${currentUserId}`);
 
     // aws 에서 쓸 주소
-    const ws = new WebSocket(`ws://13.209.97.204:8000/ws/${currentUserId}`);
+    // 채팅창과 똑같이, 환경을 감지해서 wss로 연결하도록 바꿔줍니다!
+    const isLocal = window.location.hostname === 'localhost';   
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = isLocal ? 'localhost:8000' : window.location.host;
+
+    const wsUrl = `${wsProtocol}//${host}/ws/${currentUserId}`;
+    const ws = new WebSocket(wsUrl);
 
     // 백엔드에서 신호가 날아오면 낚아채서 화면에 띄우기
     ws.onmessage = (event) => {
