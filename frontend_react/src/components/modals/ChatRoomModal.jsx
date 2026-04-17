@@ -43,10 +43,6 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
-        console.log("🔗 Connecting to:", wsUrl);
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-
         ws.onopen = () => console.log("✅ 웹소켓 서버에 연결되었습니다.");
         
         ws.onmessage = (event) => {
