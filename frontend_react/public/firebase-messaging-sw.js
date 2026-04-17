@@ -4,7 +4,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.1/firebase-messaging-compat.js');
 
-// 💡 여기에 아까 썼던 firebaseConfig를 똑같이 한 번 더 넣어줍니다!
+// 💡 하경님의 firebaseConfig 유지
 const firebaseConfig = {
   apiKey: "AIzaSyAs7_aWLEutr9_mAARn39GwiInruxMXdYM",
   authDomain: "fashion2cation.firebaseapp.com",
@@ -15,23 +15,16 @@ const firebaseConfig = {
   measurementId: "G-2G6096MV9D"
 };
 
+// 파이어베이스 초기화 (이것만 해두면 알아서 백그라운드 알림을 띄웁니다!)
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// 화면이 꺼져있을 때 푸시 알림을 받으면, 핸드폰 시스템 알림으로 띄워주는 마법의 코드
-messaging.onBackgroundMessage(function(payload) {
-  console.log('[firebase-messaging-sw.js] 백그라운드 메시지 수신: ', payload);
-  
-  const notificationTitle = payload.notification.title;
-  const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/logo192.png' // public 폴더에 있는 로고 이미지 이름
-  };
+// ==========================================
+// 💡 [핵심 해결] 수동으로 알림을 띄우던 onBackgroundMessage 블록을 완전히 삭제했습니다!
+// (파이어베이스와 iOS가 서로 충돌하여 보초병이 기절하는 현상 완벽 차단)
+// ==========================================
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
-});
-
-// 💡 [추가] 설치 즉시 불침번(보초병)을 깨우고 활성화하는 마법의 코드
+// 💡 설치 즉시 불침번(보초병)을 깨우고 활성화하는 마법의 코드
 self.addEventListener('install', function(event) {
   self.skipWaiting();
 });

@@ -27,7 +27,18 @@ def send_fcm_notification(fcm_token: str, title: str, body: str):
                 body=body,
             ),
             # ==========================================
-            # 💡 [핵심 추가] 아이폰(iOS) 잠금화면을 확실히 깨우는 마법의 설정!
+            # 💡 [핵심 추가 1] 아이폰 서버가 백그라운드 통신을 끊지 못하게 '긴급(High)' 헤더 강제 주입!
+            # ==========================================
+            webpush=messaging.WebpushConfig(
+                headers={
+                    "Urgency": "high" # 🚨 이거 없으면 iOS 백그라운드는 1번 울리고 죽습니다!
+                },
+                fcm_options=messaging.WebpushFCMOptions(
+                    link="https://fashion2cation.co.kr" # 알림 누르면 열릴 주소
+                )
+            ),
+            # ==========================================
+            # 💡 [핵심 추가 2] 아이폰(iOS) 잠금화면을 확실히 깨우고 소리를 내는 마법의 설정!
             # ==========================================
             apns=messaging.APNSConfig(
                 payload=messaging.APNSPayload(
