@@ -46,13 +46,21 @@ export const NotificationProvider = ({ children }) => {
       try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
+          
+          // ==========================================
+          // 💡 [핵심 수정] 보초병을 수동으로 찾아내서 강력하게 연결합니다!
+          // ==========================================
+          const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          
           const token = await getToken(messaging, { 
-            vapidKey: 'BCUY2in8cpDPmQUDw2kbzGwf662nnysMuPzhIcYeBxCoRLuDpKtEaJOLkBuXzps5Ll3OgyZfr2RUiwt-GHtZN7c' // 기존 키 그대로 유지
+            vapidKey: '하경님의_VAPID_KEY', // 기존 키 유지
+            serviceWorkerRegistration: registration // 💡 파이어베이스에 보초병을 직접 쥐어줍니다
           });
+          
           console.log("🔥 내 기기의 FCM 토큰(집 주소):", token);
           
-          // 💡 [추가된 부분] 발급받은 토큰을 하경님의 백엔드 서버로 전송합니다!
-          const userToken = localStorage.getItem('token'); // 로그인 토큰
+          // (아래는 기존과 동일하게 백엔드로 토큰을 쏘는 fetch 코드)
+          const userToken = localStorage.getItem('token');
           if (userToken) {
             await fetch('https://fashion2cation.co.kr/api/v1/users/fcm-token', {
               method: 'POST',
@@ -62,7 +70,6 @@ export const NotificationProvider = ({ children }) => {
               },
               body: JSON.stringify({ fcm_token: token })
             });
-            console.log("✅ FCM 토큰을 백엔드 서버에 성공적으로 등록했습니다!");
           }
         }
       } catch (error) {
