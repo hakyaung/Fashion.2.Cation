@@ -106,11 +106,11 @@ def share_redirect(post_id: str, db: Session = Depends(get_db)):
     
     return HTMLResponse(content=html_content)
 
-@app.websocket("/ws/{user_id}")
+@app.websocket("/api/v1/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
-    await notifier.connect(websocket, user_id) # 유저 접속!
+    await notifier.connect(websocket, user_id)
     try:
         while True:
-            await websocket.receive_text() # 연결 끊기지 않게 유지
+            await websocket.receive_text()
     except WebSocketDisconnect:
-        notifier.disconnect(user_id) # 나갔으면 명부에서 지우기
+        notifier.disconnect(user_id)

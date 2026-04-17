@@ -48,7 +48,7 @@ export const NotificationProvider = ({ children }) => {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = isLocal ? 'localhost:8000' : window.location.host;
 
-    const wsUrl = `${wsProtocol}//${host}/ws/${currentUserId}`;
+    const wsUrl = `${wsProtocol}//${host}/api/v1/ws/${currentUserId}`;
     const ws = new WebSocket(wsUrl);
 
     // 백엔드에서 신호가 날아오면 낚아채서 화면에 띄우기
