@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './Authcontext'; // 💡 1. 현재 로그인한 유저 정보를 가져오기 위해 추가!
 
+import { messaging } from '../firebase'; // 아까 만든 firebase.js 파일 경로
+import { getToken } from 'firebase/messaging';
+
 const NotificationContext = createContext();
 export const useNotification = () => useContext(NotificationContext);
 
@@ -35,37 +38,43 @@ export const NotificationProvider = ({ children }) => {
   // ==========================================
   // 🔌 3. [핵심] 로그인 시 백엔드 무전기(WebSocket)와 연결하기!
   // ==========================================
-  useEffect(() => {
-    // 로그인하지 않았으면 무전기를 켜지 않고 대기합니다.
+ useEffect(() => {
     if (!currentUserId) return; 
 
-    // 채팅과 똑같이 localhost로 주소를 맞춰줍니다!
-    //const ws = new WebSocket(`ws://localhost:8000/ws/${currentUserId}`);
+    // 🌟 1. FCM 푸시 알림용 집 주소(토큰) 발급받기
+    const requestFCMToken = async () => {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          const token = await getToken(messaging, { 
+            vapidKey: 'BCUY2in8cpDPmQUDw2kbzGwf662nnysMuPzhIcYeBxCoRLuDpKtEaJOLkBuXzps5Ll3OgyZfr2RUiwt-GHtZN7c' // 💡 방금 복사한 긴 키를 넣어주세요
+          });
+          console.log("🔥 내 기기의 FCM 토큰(집 주소):", token);
+          // (다음 단계에서 이 토큰을 백엔드로 보내는 코드를 짤 겁니다!)
+        }
+      } catch (error) {
+        console.error("FCM 토큰 발급 실패:", error);
+      }
+    };
+    
+    requestFCMToken(); // 함수 실행!
 
-    // aws 에서 쓸 주소
-    // 채팅창과 똑같이, 환경을 감지해서 wss로 연결하도록 바꿔줍니다!
-    const isLocal = window.location.hostname === 'localhost';   
+    // 🌟 2. 기존 채팅/알림용 무전기(WebSocket) 연결 유지
+    const isLocal = window.location.hostname === 'localhost';
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = isLocal ? 'localhost:8000' : window.location.host;
-
+    
     const wsUrl = `${wsProtocol}//${host}/api/v1/ws/${currentUserId}`;
     const ws = new WebSocket(wsUrl);
 
-    // 백엔드에서 신호가 날아오면 낚아채서 화면에 띄우기
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       showNotification(data.title, data.body); 
     };
 
-    // 혹시 연결에 문제가 생기면 콘솔에 표시
-    ws.onerror = (error) => {
-      console.error("WebSocket 통신 에러:", error);
-    };
+    ws.onerror = (error) => console.error("WebSocket 통신 에러:", error);
 
-    // 창을 닫거나 로그아웃하면 무전기 전원 끄기 (메모리 낭비 방지)
-    return () => {
-      ws.close(); 
-    };
+    return () => ws.close(); 
   }, [currentUserId]);
 
   // 🧪 당장 테스트해 보기 위한 임시 스위치 (나중에 백엔드 연결 후 지울 예정)
