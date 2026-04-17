@@ -40,7 +40,10 @@ export const NotificationProvider = ({ children }) => {
     if (!currentUserId) return; 
 
     // 채팅과 똑같이 localhost로 주소를 맞춰줍니다!
-    const ws = new WebSocket(`ws://localhost:8000/ws/${currentUserId}`);
+    //const ws = new WebSocket(`ws://localhost:8000/ws/${currentUserId}`);
+
+    // aws 에서 쓸 주소
+    const ws = new WebSocket(`ws://13.209.97.204:8000/ws/${currentUserId}`);
 
     // 백엔드에서 신호가 날아오면 낚아채서 화면에 띄우기
     ws.onmessage = (event) => {

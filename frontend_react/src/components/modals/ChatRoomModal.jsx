@@ -32,8 +32,10 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
         // 💡 2. 채팅방에 들어왔으므로 지금까지 쌓인 메시지를 모두 '읽음' 처리합니다.
         await markChatAsRead(currentRoomId, currentUserId);
 
+        // 💡 [핵심 수정] 무조건 현재 사용자가 접속한 인터넷 주소를 따라가게 만듭니다!
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = API_URL.replace(/^https?:\/\//, '');
+        // 현재 브라우저 주소(AWS IP)를 가져오되, 뒤에 백엔드 포트(8000)를 붙여줍니다.
+        const host = `${window.location.hostname}:8000`; 
         const wsUrl = `${wsProtocol}//${host}/api/v1/chat/ws/${currentRoomId}/${currentUserId}`;
 
         console.log("🔗 Connecting to:", wsUrl);
