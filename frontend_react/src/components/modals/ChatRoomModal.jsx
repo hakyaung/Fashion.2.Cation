@@ -29,17 +29,22 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
         const history = await fetchChatHistory(currentRoomId);
         if (isMounted) setMessages(history);
 
-        // 💡 2. 채팅방에 들어왔으므로 지금까지 쌓인 메시지를 모두 '읽음' 처리합니다.
+        // 2. 채팅방에 들어왔으므로 지금까지 쌓인 메시지를 모두 '읽음' 처리합니다.
         await markChatAsRead(currentRoomId, currentUserId);
 
-        // 1. 주소 만들기 (딱 한 번만)
+        // ==========================================
+        // 💡 [핵심 수정] 환경(Local vs HTTPS 배포) 자동 감지 무전기 주소 세팅
+        // ==========================================
+        const isLocal = window.location.hostname === 'localhost';
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = `${window.location.hostname}:8000`; 
+        // 배포(HTTPS) 환경이면 포트 없이 도메인만, 로컬이면 8000 포트를 붙여서 사용합니다.
+        const host = isLocal ? 'localhost:8000' : window.location.host; 
+        
         const wsUrl = `${wsProtocol}//${host}/api/v1/chat/ws/${currentRoomId}/${currentUserId}`;
 
         console.log("🔗 Connecting to:", wsUrl);
 
-        // 2. 무전기 연결하기 (여기도 딱 한 번만!)
+        // 무전기 연결하기
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
@@ -49,7 +54,7 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
           if (isMounted) {
             const data = JSON.parse(event.data);
             
-            // 💡 [핵심] 신호 종류에 따른 실시간 읽음 처리
+            // 신호 종류에 따른 실시간 읽음 처리
             if (data.type === 'read_receipt') {
               // 상대방이 내 메시지를 읽었다는 신호가 오면, 내 화면의 모든 '안 읽음'을 '읽음'으로 변경
               if (String(data.reader_id) !== String(currentUserId)) {
@@ -144,7 +149,6 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
             const isMe = String(msg.sender_id) === String(currentUserId);
             
             return (
-              // 💡 말풍선과 읽음 표시를 나란히 배치하기 위한 구조 수정
               <div key={idx} style={{ 
                 display: 'flex', 
                 justifyContent: isMe ? 'flex-end' : 'flex-start' 
@@ -156,7 +160,7 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
                   maxWidth: '75%' 
                 }}>
                   
-                  {/* 💡 내가 보낸 메시지인 경우 말풍선 왼쪽에 '읽음/안 읽음' 표시 */}
+                  {/* 내가 보낸 메시지인 경우 말풍선 왼쪽에 '읽음/안 읽음' 표시 */}
                   {isMe && (
                     <span style={{ 
                       fontSize: '11px', 
