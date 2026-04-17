@@ -1,34 +1,47 @@
 // public/firebase-messaging-sw.js
 
-// 파이어베이스 백그라운드 일꾼 불러오기
-importScripts('https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.8.1/firebase-messaging-compat.js');
+// 💡 [핵심 해결] 파이어베이스 SDK를 백그라운드에서 완전히 제거했습니다!
+// 파이어베이스가 알림을 멋대로 숨겨서 애플에게 영구 차단당하는 현상을 100% 방지합니다.
+// 오직 "순수 웹 푸시(Native Web Push)" 표준 기능만 사용합니다.
 
-// 💡 하경님의 firebaseConfig 유지
-const firebaseConfig = {
-  apiKey: "AIzaSyAs7_aWLEutr9_mAARn39GwiInruxMXdYM",
-  authDomain: "fashion2cation.firebaseapp.com",
-  projectId: "fashion2cation",
-  storageBucket: "fashion2cation.firebasestorage.app",
-  messagingSenderId: "611333260846",
-  appId: "1:611333260846:web:48ddac6d0451cfab19c1bf",
-  measurementId: "G-2G6096MV9D"
-};
-
-// 파이어베이스 초기화 (이것만 해두면 알아서 백그라운드 알림을 띄웁니다!)
-firebase.initializeApp(firebaseConfig);
-const messaging = firebase.messaging();
-
-// ==========================================
-// 💡 [핵심 해결] 수동으로 알림을 띄우던 onBackgroundMessage 블록을 완전히 삭제했습니다!
-// (파이어베이스와 iOS가 서로 충돌하여 보초병이 기절하는 현상 완벽 차단)
-// ==========================================
-
-// 💡 설치 즉시 불침번(보초병)을 깨우고 활성화하는 마법의 코드
 self.addEventListener('install', function(event) {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', function(event) {
   event.waitUntil(self.clients.claim());
+});
+
+// 💡 백그라운드/포그라운드 상관없이 무조건 알림을 띄우는 순수 수신기
+self.addEventListener('push', function(event) {
+  if (!event.data) return;
+
+  const payload = event.data.json();
+  const title = payload.notification?.title || "Fashion2Cation";
+  const options = {
+    body: payload.notification?.body || "새로운 알림이 도착했습니다.",
+    icon: '/logo192.png',
+    badge: '/logo192.png', // 아이폰 상단 작은 아이콘
+  };
+
+  // 🚨 [가장 중요] 애플의 철칙 준수: 푸시가 오면 무조건 시스템 배너를 띄웁니다!
+  // 단 한 번이라도 이걸 빼먹으면 보초병이 즉시 사살당합니다.
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
+});
+
+// 💡 알림 배너를 클릭했을 때 앱을 열어주는 기능
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then(windowClients => {
+      // 이미 창이 열려있으면 그 창을 보여주고, 아니면 새로 엽니다
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        if (client.url === '/' && 'focus' in client) return client.focus();
+      }
+      if (clients.openWindow) return clients.openWindow('/');
+    })
+  );
 });
