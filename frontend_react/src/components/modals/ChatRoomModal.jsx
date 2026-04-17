@@ -32,18 +32,16 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
         // 💡 2. 채팅방에 들어왔으므로 지금까지 쌓인 메시지를 모두 '읽음' 처리합니다.
         await markChatAsRead(currentRoomId, currentUserId);
 
-        // 💡 [핵심] 현재 환경(로컬 vs 배포)을 자동으로 감지해서 올바른 주소를 만듭니다.
-        const isLocal = window.location.hostname === 'localhost';
-        
-        // HTTPS 환경이면 보안 웹소켓(wss)을, 아니면 일반 웹소켓(ws)을 사용합니다.
+        // 1. 주소 만들기 (딱 한 번만)
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        
-        // 배포 환경이면 하경님의 도메인(fashion2cation.co.kr)을 그대로 사용합니다.
-        const host = isLocal ? 'localhost:8000' : window.location.host;
+        const host = `${window.location.hostname}:8000`; 
+        const wsUrl = `${wsProtocol}//${host}/api/v1/chat/ws/${currentRoomId}/${currentUserId}`;
 
-        // 최종 무전기 주소 조립!
-        const wsUrl = `${wsProtocol}//${host}/ws/${currentUserId}`;
+        console.log("🔗 Connecting to:", wsUrl);
+
+        // 2. 무전기 연결하기 (여기도 딱 한 번만!)
         const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
 
         console.log("🔗 Connecting to:", wsUrl);
         const ws = new WebSocket(wsUrl);
