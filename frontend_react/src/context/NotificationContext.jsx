@@ -47,13 +47,26 @@ export const NotificationProvider = ({ children }) => {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
           const token = await getToken(messaging, { 
-            vapidKey: 'BCUY2in8cpDPmQUDw2kbzGwf662nnysMuPzhIcYeBxCoRLuDpKtEaJOLkBuXzps5Ll3OgyZfr2RUiwt-GHtZN7c' // 💡 방금 복사한 긴 키를 넣어주세요
+            vapidKey: 'BCUY2in8cpDPmQUDw2kbzGwf662nnysMuPzhIcYeBxCoRLuDpKtEaJOLkBuXzps5Ll3OgyZfr2RUiwt-GHtZN7c' // 기존 키 그대로 유지
           });
           console.log("🔥 내 기기의 FCM 토큰(집 주소):", token);
-          // (다음 단계에서 이 토큰을 백엔드로 보내는 코드를 짤 겁니다!)
+          
+          // 💡 [추가된 부분] 발급받은 토큰을 하경님의 백엔드 서버로 전송합니다!
+          const userToken = localStorage.getItem('token'); // 로그인 토큰
+          if (userToken) {
+            await fetch('https://fashion2cation.co.kr/api/v1/users/fcm-token', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${userToken}`
+              },
+              body: JSON.stringify({ fcm_token: token })
+            });
+            console.log("✅ FCM 토큰을 백엔드 서버에 성공적으로 등록했습니다!");
+          }
         }
       } catch (error) {
-        console.error("FCM 토큰 발급 실패:", error);
+        console.error("FCM 토큰 발급/등록 실패:", error);
       }
     };
     
