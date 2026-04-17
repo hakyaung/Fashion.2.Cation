@@ -9,6 +9,9 @@ from app.db.session import engine, Base
 from app.core.config import settings
 from app.api import chat
 
+from fastapi import WebSocket, WebSocketDisconnect
+from app.core.notifier import notifier
+
 # 1. DB 테이블 생성
 Base.metadata.create_all(bind=engine)
 
@@ -102,3 +105,12 @@ def share_redirect(post_id: str, db: Session = Depends(get_db)):
     """
     
     return HTMLResponse(content=html_content)
+
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    await notifier.connect(websocket, user_id) # 유저 접속!
+    try:
+        while True:
+            await websocket.receive_text() # 연결 끊기지 않게 유지
+    except WebSocketDisconnect:
+        notifier.disconnect(user_id) # 나갔으면 명부에서 지우기

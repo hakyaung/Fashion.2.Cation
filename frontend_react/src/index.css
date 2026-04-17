@@ -349,6 +349,48 @@ body {
 }
 
 /* ==========================================
+   🔔 실시간 알림 (Toast Notifications)
+   ========================================== */
+.toast-container {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.toast {
+  background: white;
+  border-left: 4px solid var(--rust); /* 포인트 컬러 */
+  padding: 16px 24px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  animation: slideInRight 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+  min-width: 280px;
+}
+
+.toast strong {
+  display: block;
+  color: var(--warm-black);
+  font-size: 15px;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+.toast p {
+  color: rgba(26,22,18,0.7);
+  font-size: 13px;
+  margin: 0;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* ==========================================
    📱 모바일 반응형
    ========================================== */
 @media (max-width: 768px) {
@@ -521,6 +563,26 @@ body {
 
   #chat-room-modal-content form {
     padding: 10px 15px 15px 15px !important;
+  }
+
+  .toast-container {
+    top: 20px;
+    bottom: auto;
+    right: 50%;
+    transform: translateX(50%);
+    width: 90%;
+    align-items: center;
+  }
+  
+  .toast {
+    width: 100%;
+    min-width: unset;
+    animation: slideInDown 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+  }
+
+  @keyframes slideInDown {
+    from { transform: translateY(-150%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
   }
 }
 

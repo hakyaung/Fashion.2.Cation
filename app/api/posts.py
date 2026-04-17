@@ -12,6 +12,9 @@ from app.models.models import Post, PostTag, User, Location, Like, Comment
 from app.api.deps import get_current_user
 # from app.services.ai_gateway import send_to_ai_worker # 💡 기존의 가짜 무전기는 이제 사용하지 않습니다!
 
+from fastapi import BackgroundTasks  # 💡 이미 있다면 무시하세요!
+from app.core.notifier import notifier
+
 router = APIRouter()
 UPLOAD_DIR = "uploads"
 
@@ -225,7 +228,7 @@ def ensure_like(post_id: str, db: Session = Depends(get_db), current_user: User 
     return {"status": "liked"}
 
 @router.post("/{post_id}/like")
-def toggle_like(post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def toggle_like(post_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     existing_like = db.query(Like).filter(Like.post_id == post_id, Like.user_id == current_user.id).first()
     if existing_like:
         db.delete(existing_like)
@@ -235,6 +238,13 @@ def toggle_like(post_id: str, db: Session = Depends(get_db), current_user: User 
         new_like = Like(post_id=post_id, user_id=current_user.id)
         db.add(new_like)
         db.commit()
+
+        # 💡 [핵심] 글 주인에게 좋아요 알림 쏘기!
+        post = db.query(Post).filter(Post.id == post_id).first()
+        if post and post.user_id != current_user.id: # 내 글에 내가 좋아요 누른 건 제외
+            background_tasks.add_task(
+                notifier.push, str(post.user_id), "새로운 좋아요 ❤️", f"{current_user.nickname}님이 회원님의 게시물을 좋아합니다."
+            )
         return {"status": "liked"}
 
 # ==========================================
@@ -244,10 +254,17 @@ class CommentCreate(BaseModel):
     content: str
 
 @router.post("/{post_id}/comments")
-def add_comment(post_id: str, comment: CommentCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def add_comment(post_id: str, comment: CommentCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     new_comment = Comment(post_id=post_id, user_id=current_user.id, content=comment.content)
     db.add(new_comment)
     db.commit()
+
+    # 💡 [핵심] 글 주인에게 댓글 알림 쏘기!
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if post and post.user_id != current_user.id:
+        background_tasks.add_task(
+            notifier.push, str(post.user_id), "새로운 댓글 💬", f"{current_user.nickname}님: {comment.content}"
+        )
     return {"status": "success"}
 
 @router.get("/{post_id}/comments")

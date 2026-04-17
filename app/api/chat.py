@@ -7,9 +7,11 @@ import uuid
 from app.db.session import get_db
 from app.db.session import SessionLocal
 from app.models.models import Message, ChatRoom, User
-# schemas.py에서 만든 스키마들을 가져옵니다. (경로는 하경님 환경에 맞게 수정)
 from app.schemas import MessageResponse 
 from sqlalchemy import or_, desc
+
+# 💡 [추가됨] 무전기(알림 발신기) 가져오기
+from app.core.notifier import notifier
 
 router = APIRouter()
 
@@ -21,7 +23,6 @@ class ConnectionManager:
         self.active_connections: Dict[int, List[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, room_id: int):
-        # 💡 [수정] 여기서 await websocket.accept()를 지웠습니다! (중복 방지)
         if room_id not in self.active_connections:
             self.active_connections[room_id] = []
         self.active_connections[room_id].append(websocket)
@@ -59,6 +60,15 @@ async def websocket_chat(websocket: WebSocket, room_id: str, user_id: str):
         room_id_int = int(room_id)
         user_uuid = uuid.UUID(user_id)
         
+        # 💡 [추가됨] 누가 누구에게 보내는지 파악하기 위해 방 정보와 보낸 사람 정보를 미리 가져옵니다.
+        room = db.query(ChatRoom).filter(ChatRoom.id == room_id_int).first()
+        sender = db.query(User).filter(User.id == user_uuid).first()
+        
+        # 상대방 ID 찾기 (알림을 받을 타겟)
+        target_user_id = None
+        if room:
+            target_user_id = room.user2_id if str(room.user1_id) == user_id else room.user1_id
+
         # 매니저에 등록
         await manager.connect(websocket, room_id_int)
         
@@ -83,6 +93,14 @@ async def websocket_chat(websocket: WebSocket, room_id: str, user_id: str):
                 "created_at": new_message.created_at.isoformat() if new_message.created_at else ""
             }
             await manager.broadcast_to_room(room_id_int, json.dumps(msg_data))
+            
+            # 💡 [핵심 추가] 상대방의 화면(무전기)으로 실시간 알림 쏘기!
+            if target_user_id and sender:
+                await notifier.push(
+                    str(target_user_id), 
+                    "새로운 메시지 💬", 
+                    f"{sender.nickname}: {data}"
+                )
             
     except WebSocketDisconnect:
         manager.disconnect(websocket, int(room_id))
@@ -146,7 +164,7 @@ def get_user_rooms(current_user_id: str, db: Session = Depends(get_db)):
         
         # 3. 마지막 메시지 가져오기
         last_msg = db.query(Message).filter(Message.room_id == room.id)\
-                     .order_by(desc(Message.created_at)).first()
+                      .order_by(desc(Message.created_at)).first()
 
         result.append({
             "id": room.id,
@@ -183,15 +201,13 @@ async def mark_messages_as_read(room_id: int, current_user_id: str, db: Session 
         msg.is_read = True
     db.commit()
     
-    # 💡 [핵심 수정] 파이썬의 숫자형 room_id를 문자열(str)로 변환해서 방송합니다.
-    # (웹소켓 매니저가 방 번호를 문자로 저장하고 있을 확률이 높기 때문입니다)
+    # 파이썬의 숫자형 room_id를 문자열(str)로 변환해서 방송합니다.
     read_event = {
         "type": "read_receipt",
         "room_id": str(room_id), 
         "reader_id": str(current_user_id)
     }
     
-    # broadcast_to_room 함수 호출 시에도 str(room_id) 사용!
     await manager.broadcast_to_room(str(room_id), json.dumps(read_event))
     
     return {"status": "ok", "updated": len(unread_messages)}
