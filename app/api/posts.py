@@ -3,17 +3,19 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 import uuid
 import os
-import requests # 💡 [추가됨] AI 서버와 통신하기 위한 무전기 모듈
+import requests # 💡 AI 서버와 통신하기 위한 무전기 모듈
 from pydantic import BaseModel
 from sqlalchemy import func
 
 from app.db.session import get_db
 from app.models.models import Post, PostTag, User, Location, Like, Comment
 from app.api.deps import get_current_user
-# from app.services.ai_gateway import send_to_ai_worker # 💡 기존의 가짜 무전기는 이제 사용하지 않습니다!
 
-from fastapi import BackgroundTasks  # 💡 이미 있다면 무시하세요!
+from fastapi import BackgroundTasks  
 from app.core.notifier import notifier
+
+# 💡 [추가] 진짜 푸시 알림 발송 함수 가져오기
+from app.core.fcm import send_fcm_notification
 
 router = APIRouter()
 UPLOAD_DIR = "uploads"
@@ -242,9 +244,21 @@ def toggle_like(post_id: str, background_tasks: BackgroundTasks, db: Session = D
         # 💡 [핵심] 글 주인에게 좋아요 알림 쏘기!
         post = db.query(Post).filter(Post.id == post_id).first()
         if post and post.user_id != current_user.id: # 내 글에 내가 좋아요 누른 건 제외
+            # 1. 화면 켜진 사람(웹소켓)용 알림
             background_tasks.add_task(
                 notifier.push, str(post.user_id), "새로운 좋아요 ❤️", f"{current_user.nickname}님이 회원님의 게시물을 좋아합니다."
             )
+            
+            # 2. 🚀 화면 꺼진 사람(아이폰 푸시)용 진짜 푸시 알림 (백그라운드 처리로 딜레이 제거!)
+            target_user = db.query(User).filter(User.id == post.user_id).first()
+            if target_user and target_user.fcm_token:
+                background_tasks.add_task(
+                    send_fcm_notification,
+                    target_user.fcm_token,
+                    "새로운 좋아요 ❤️",
+                    f"{current_user.nickname}님이 회원님의 게시물을 좋아합니다."
+                )
+
         return {"status": "liked"}
 
 # ==========================================
@@ -262,9 +276,21 @@ def add_comment(post_id: str, comment: CommentCreate, background_tasks: Backgrou
     # 💡 [핵심] 글 주인에게 댓글 알림 쏘기!
     post = db.query(Post).filter(Post.id == post_id).first()
     if post and post.user_id != current_user.id:
+        # 1. 화면 켜진 사람(웹소켓)용 알림
         background_tasks.add_task(
             notifier.push, str(post.user_id), "새로운 댓글 💬", f"{current_user.nickname}님: {comment.content}"
         )
+        
+        # 2. 🚀 화면 꺼진 사람(아이폰 푸시)용 진짜 푸시 알림 (백그라운드 처리)
+        target_user = db.query(User).filter(User.id == post.user_id).first()
+        if target_user and target_user.fcm_token:
+            background_tasks.add_task(
+                send_fcm_notification,
+                target_user.fcm_token,
+                "새로운 댓글 💬",
+                f"{current_user.nickname}님: {comment.content}"
+            )
+
     return {"status": "success"}
 
 @router.get("/{post_id}/comments")

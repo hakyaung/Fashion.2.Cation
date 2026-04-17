@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, List
 import json
 import uuid
+import asyncio
 
 from app.db.session import get_db
 from app.db.session import SessionLocal
@@ -10,7 +11,7 @@ from app.models.models import Message, ChatRoom, User
 from app.schemas import MessageResponse 
 from sqlalchemy import or_, desc
 
-# 💡 [추가됨] 무전기(알림 발신기) 가져오기
+# 💡 무전기(알림 발신기) 가져오기
 from app.core.notifier import notifier
 
 from app.core.fcm import send_fcm_notification
@@ -62,7 +63,7 @@ async def websocket_chat(websocket: WebSocket, room_id: str, user_id: str):
         room_id_int = int(room_id)
         user_uuid = uuid.UUID(user_id)
         
-        # 💡 [추가됨] 누가 누구에게 보내는지 파악하기 위해 방 정보와 보낸 사람 정보를 미리 가져옵니다.
+        # 누가 누구에게 보내는지 파악하기 위해 방 정보와 보낸 사람 정보를 미리 가져옵니다.
         room = db.query(ChatRoom).filter(ChatRoom.id == room_id_int).first()
         sender = db.query(User).filter(User.id == user_uuid).first()
         
@@ -96,7 +97,7 @@ async def websocket_chat(websocket: WebSocket, room_id: str, user_id: str):
             }
             await manager.broadcast_to_room(room_id_int, json.dumps(msg_data))
             
-            # 💡 [핵심 추가] 상대방의 화면(무전기)으로 실시간 알림 쏘기!
+            # 상대방의 화면(무전기)으로 실시간 웹소켓 알림 쏘기!
             if target_user_id and sender:
                 await notifier.push(
                     str(target_user_id), 
@@ -104,13 +105,17 @@ async def websocket_chat(websocket: WebSocket, room_id: str, user_id: str):
                     f"{sender.nickname}: {data}"
                 )
 
+            # 💡 [핵심 수정] 화면 꺼진 사람(아이폰)을 위한 알림 발송 (백그라운드 처리)
             target_user = db.query(User).filter(User.id == target_user_id).first()
             if target_user and target_user.fcm_token:
-                # 비동기(async) 함수가 아니므로 그대로 실행합니다
-                send_fcm_notification(
-                    fcm_token=target_user.fcm_token,
-                    title="새로운 메시지 💬",
-                    body=f"{sender.nickname}: {data}"
+                # 🚀 우체국 업무는 백그라운드 직원에게 던져버리고 채팅방은 멈추지 않습니다!
+                asyncio.create_task(
+                    asyncio.to_thread(
+                        send_fcm_notification,
+                        target_user.fcm_token,
+                        "새로운 메시지 💬",
+                        f"{sender.nickname}: {data}"
+                    )
                 )
             
     except WebSocketDisconnect:
@@ -195,7 +200,7 @@ def get_user_rooms(current_user_id: str, db: Session = Depends(get_db)):
     return sorted(result, key=lambda x: x['last_message_time'], reverse=True)
 
 # ==========================================
-# 💡 [새로 추가] 메시지 읽음 처리 API
+# 💡 메시지 읽음 처리 API
 # ==========================================
 @router.put("/room/{room_id}/read")
 async def mark_messages_as_read(room_id: int, current_user_id: str, db: Session = Depends(get_db)):
