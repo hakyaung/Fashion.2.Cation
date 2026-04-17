@@ -25,14 +25,6 @@ export default function RightSidebar({ onOpenPostModal }) {
         </ul>
       </div>
 
-      <div className="widget ai-widget">
-        <h3 className="widget-title">AI Style Insight</h3>
-        <p style={{ fontSize: 12, color: 'rgba(26,22,18,0.6)', lineHeight: 1.5 }}>
-          현재 천안 지역은 <strong>'오버핏 자켓'</strong>과{' '}
-          <strong>'무채색 톤'</strong>이 급상승 중입니다. 스타일 스케이프 AI가 분석한 결과입니다.
-        </p>
-      </div>
-
       <div className="widget write-widget" style={{ borderColor: 'var(--rust)', background: 'var(--off-white)' }}>
         <h3 className="widget-title" style={{ color: 'var(--rust)' }}>새로운 스타일 공유</h3>
         <p style={{ fontSize: 12, color: 'rgba(26,22,18,0.6)', marginBottom: 16, lineHeight: 1.5 }}>

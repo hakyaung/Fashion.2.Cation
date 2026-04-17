@@ -48,6 +48,13 @@ body {
 .feed-filters button { background: transparent; border: none; font-family: 'DM Sans', sans-serif; font-size: 14px; color: rgba(26,22,18,0.5); cursor: pointer; margin-left: 16px; transition: color 0.3s; }
 .feed-filters button.active { color: var(--rust); font-weight: 600; background: var(--warm-black); color: white; }
 
+/* 2. 데스크탑 화면(769px 이상)에서는 버튼을 숨김 */
+@media (min-width: 769px) {
+  .feed-filters button {
+    display: none !important;
+  }
+}
+
 /* Post Card */
 .post-card { background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); transition: transform 0.3s ease; }
 .post-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.05); border-color: rgba(26,22,18,0.15); }
