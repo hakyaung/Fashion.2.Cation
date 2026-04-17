@@ -26,6 +26,17 @@ def send_fcm_notification(fcm_token: str, title: str, body: str):
                 title=title,
                 body=body,
             ),
+            # ==========================================
+            # 💡 [핵심 추가] 아이폰(iOS) 잠금화면을 확실히 깨우는 마법의 설정!
+            # ==========================================
+            apns=messaging.APNSConfig(
+                payload=messaging.APNSPayload(
+                    aps=messaging.Aps(
+                        sound="default", # 띠링! 소리를 내게 합니다
+                        badge=1          # 앱 아이콘 우측 상단에 빨간 숫자(1)를 띄웁니다
+                    )
+                )
+            ),
             token=fcm_token,
         )
         # 구글 우체국으로 발송!

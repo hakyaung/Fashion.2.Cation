@@ -241,15 +241,9 @@ def toggle_like(post_id: str, background_tasks: BackgroundTasks, db: Session = D
         db.add(new_like)
         db.commit()
 
-        # 💡 [핵심] 글 주인에게 좋아요 알림 쏘기!
         post = db.query(Post).filter(Post.id == post_id).first()
-        if post and post.user_id != current_user.id: # 내 글에 내가 좋아요 누른 건 제외
-            # 1. 화면 켜진 사람(웹소켓)용 알림
-            background_tasks.add_task(
-                notifier.push, str(post.user_id), "새로운 좋아요 ❤️", f"{current_user.nickname}님이 회원님의 게시물을 좋아합니다."
-            )
-            
-            # 2. 🚀 화면 꺼진 사람(아이폰 푸시)용 진짜 푸시 알림 (백그라운드 처리로 딜레이 제거!)
+        if post and post.user_id != current_user.id:
+            # 💡 [핵심] 에러가 나지 않는 확실한 진짜 푸시(FCM)를 "1순위"로 등록합니다!
             target_user = db.query(User).filter(User.id == post.user_id).first()
             if target_user and target_user.fcm_token:
                 background_tasks.add_task(
@@ -258,6 +252,11 @@ def toggle_like(post_id: str, background_tasks: BackgroundTasks, db: Session = D
                     "새로운 좋아요 ❤️",
                     f"{current_user.nickname}님이 회원님의 게시물을 좋아합니다."
                 )
+            
+            # 그 다음 "2순위"로 웹소켓을 쏩니다 (이게 실패해도 위의 FCM은 정상적으로 배달됩니다)
+            background_tasks.add_task(
+                notifier.push, str(post.user_id), "새로운 좋아요 ❤️", f"{current_user.nickname}님이 회원님의 게시물을 좋아합니다."
+            )
 
         return {"status": "liked"}
 
@@ -273,15 +272,9 @@ def add_comment(post_id: str, comment: CommentCreate, background_tasks: Backgrou
     db.add(new_comment)
     db.commit()
 
-    # 💡 [핵심] 글 주인에게 댓글 알림 쏘기!
     post = db.query(Post).filter(Post.id == post_id).first()
     if post and post.user_id != current_user.id:
-        # 1. 화면 켜진 사람(웹소켓)용 알림
-        background_tasks.add_task(
-            notifier.push, str(post.user_id), "새로운 댓글 💬", f"{current_user.nickname}님: {comment.content}"
-        )
-        
-        # 2. 🚀 화면 꺼진 사람(아이폰 푸시)용 진짜 푸시 알림 (백그라운드 처리)
+        # 💡 [핵심] 여기서도 진짜 아이폰 푸시를 무조건 "1순위"로 올립니다!
         target_user = db.query(User).filter(User.id == post.user_id).first()
         if target_user and target_user.fcm_token:
             background_tasks.add_task(
@@ -290,6 +283,11 @@ def add_comment(post_id: str, comment: CommentCreate, background_tasks: Backgrou
                 "새로운 댓글 💬",
                 f"{current_user.nickname}님: {comment.content}"
             )
+
+        # 2순위 웹소켓 등록
+        background_tasks.add_task(
+            notifier.push, str(post.user_id), "새로운 댓글 💬", f"{current_user.nickname}님: {comment.content}"
+        )
 
     return {"status": "success"}
 

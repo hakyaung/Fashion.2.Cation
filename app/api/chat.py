@@ -79,6 +79,13 @@ async def websocket_chat(websocket: WebSocket, room_id: str, user_id: str):
             # 클라이언트로부터 메시지 수신 대기
             data = await websocket.receive_text()
             
+            # 💡 [추가] 클라이언트가 보낸 데이터에서 순수 메시지 내용만 예쁘게 뽑아내기
+            try:
+                parsed_data = json.loads(data)
+                chat_content = parsed_data.get("content", data)
+            except:
+                chat_content = data
+            
             # DB 저장
             new_message = Message(room_id=room_id_int, sender_id=user_uuid, content=data)
             db.add(new_message)
@@ -97,26 +104,33 @@ async def websocket_chat(websocket: WebSocket, room_id: str, user_id: str):
             }
             await manager.broadcast_to_room(room_id_int, json.dumps(msg_data))
             
-            # 상대방의 화면(무전기)으로 실시간 웹소켓 알림 쏘기!
-            if target_user_id and sender:
-                await notifier.push(
-                    str(target_user_id), 
-                    "새로운 메시지 💬", 
-                    f"{sender.nickname}: {data}"
-                )
-
-            # 💡 [핵심 수정] 화면 꺼진 사람(아이폰)을 위한 알림 발송 (백그라운드 처리)
+            # ==========================================
+            # 💡 [핵심] 알림 발송 순서 변경 및 에러 방어막 적용
+            # ==========================================
+            
+            # 1. 화면 꺼진 사람(아이폰)을 위한 알림을 무조건 '먼저' 백그라운드로 던집니다!
             target_user = db.query(User).filter(User.id == target_user_id).first()
             if target_user and target_user.fcm_token:
-                # 🚀 우체국 업무는 백그라운드 직원에게 던져버리고 채팅방은 멈추지 않습니다!
+                # 🚀 우체국 업무는 백그라운드 직원에게 던져버리고 채팅방은 멈추지 않습니다.
                 asyncio.create_task(
                     asyncio.to_thread(
                         send_fcm_notification,
                         target_user.fcm_token,
                         "새로운 메시지 💬",
-                        f"{sender.nickname}: {data}"
+                        f"{sender.nickname}: {chat_content}" # 깔끔한 텍스트 전송
                     )
                 )
+
+            # 2. 화면 켜진 사람을 위한 웹소켓 알림 (오프라인일 때 터지는 것을 방지)
+            if target_user_id and sender:
+                try:
+                    await notifier.push(
+                        str(target_user_id), 
+                        "새로운 메시지 💬", 
+                        f"{sender.nickname}: {chat_content}"
+                    )
+                except Exception as e:
+                    print(f"⚠️ 상대방이 오프라인이라 웹소켓 알림을 생략합니다: {e}")
             
     except WebSocketDisconnect:
         manager.disconnect(websocket, int(room_id))
@@ -142,9 +156,6 @@ def get_chat_history(room_id: int, db: Session = Depends(get_db)):
 # ==========================================
 @router.post("/room/{target_user_id}")
 def get_or_create_room(target_user_id: str, current_user_id: str, db: Session = Depends(get_db)):
-    # 💡 실제 구현 시에는 current_user_id를 보안 토큰(Depends)에서 가져와야 합니다.
-    # 우선 테스트를 위해 파라미터로 받게 해두었습니다.
-    
     # 이미 둘 사이의 방이 있는지 확인
     existing_room = db.query(ChatRoom).filter(
         ((ChatRoom.user1_id == current_user_id) & (ChatRoom.user2_id == target_user_id)) |
