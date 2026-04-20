@@ -1,11 +1,15 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next'; // 💡 다국어 훅 추가
 import { fetchMyPosts, fetchUserProfile, toggleFollowApi, API_URL } from '../../api/api'; 
 import { useAuth } from '../../context/Authcontext'; 
+import { formatApiError } from '../../utils/formatApiError'; // 💡 에러 포매터 추가
 import ProfileEditModal from '../modals/ProfileEditModal'; 
+import TranslatableText from '../common/TranslatableText'; // 💡 본문 번역 컴포넌트 추가
 
 // 💡 ChatRoomModal은 이제 CommunityPage에서 관리하므로 여기서 직접 임포트할 필요가 없습니다.
 
 export default function ProfileView({ targetUserId, onOpenChat }) {
+  const { t } = useTranslation(); // 💡 다국어 함수 가져오기
   const { currentUserId } = useAuth(); 
   const [posts, setPosts] = useState([]);
   const [profile, setProfile] = useState(null); 
@@ -51,7 +55,7 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
 
   const handleFollowClick = async () => {
     if (!currentUserId) {
-      alert("로그인이 필요합니다.");
+      alert(t('profile.needLogin'));
       return;
     }
     try {
@@ -59,7 +63,7 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
       setIsFollowing(res.status === 'followed');
       loadData();
     } catch (err) {
-      alert("팔로우 처리 중 오류가 발생했습니다.");
+      alert(formatApiError(t, err) || t('profile.followError'));
     }
   };
 
@@ -80,30 +84,33 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
         </div>
         <div className="profile-info">
           <div className="profile-username">
-            <span id="profile-nickname-display">{profile?.nickname || 'Style_Creator'}</span>
+            <span id="profile-nickname-display">{profile?.nickname || t('profile.defaultNickname')}</span>
             <span className="settings-icon">⚙</span>
           </div>
-          <div className="profile-name">패션 디렉터</div>
+          <div className="profile-name">{t('profile.director')}</div>
           <ul className="profile-stats">
-            <li>게시물 <strong>{profile?.posts_count || 0}</strong></li>
-            <li>팔로워 <strong>{profile?.followers_count || 0}</strong></li>
-            <li>팔로잉 <strong>{profile?.following_count || 0}</strong></li>
+            <li>{t('profile.posts')} <strong>{profile?.posts_count || 0}</strong></li>
+            <li>{t('profile.followers')} <strong>{profile?.followers_count || 0}</strong></li>
+            <li>{t('profile.following')} <strong>{profile?.following_count || 0}</strong></li>
           </ul>
           <div className="profile-bio">
-            {profile?.bio || "🔗 blog.Fashion2Cation.com/creator"}
+            {profile?.bio ? <TranslatableText text={profile.bio} compact /> : t('profile.defaultBio')}
           </div>
           
           <div className="profile-actions" style={{ display: 'flex', gap: '10px' }}>
             {(!profile || currentUserId === profile.id) ? (
               <>
-                <button className="btn-profile-action" onClick={() => setEditModalOpen(true)}>
-                  프로필 편집
+                <button type="button" className="btn-profile-action" onClick={() => setEditModalOpen(true)}>
+                  {t('profile.editProfile')}
                 </button>
-                <button className="btn-profile-action">보관된 스토리 보기</button>
+                <button type="button" className="btn-profile-action">
+                  {t('profile.savedStories')}
+                </button>
               </>
             ) : (
               <>
                 <button 
+                  type="button"
                   className="btn-profile-action" 
                   onClick={handleFollowClick}
                   style={isFollowing 
@@ -111,15 +118,16 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
                     : { backgroundColor: 'var(--rust)', color: '#fff', border: 'none' }
                   }
                 >
-                  {isFollowing ? '팔로잉' : '팔로우'}
+                  {isFollowing ? t('profile.followingBtn') : t('profile.followBtn')}
                 </button>
                 <button 
+                  type="button"
                   className="btn-profile-action" 
                   // 💡 부모 컴포넌트(CommunityPage)에서 전달받은 채팅창 열기 함수 실행
                   onClick={() => onOpenChat(profile)} 
                   style={{ color: 'var(--rust)', borderColor: 'var(--rust)', fontWeight: 'bold' }}
                 >
-                  메시지 보내기 ✦
+                  {t('profile.messageBtn')}
                 </button>
               </>
             )}
@@ -133,18 +141,18 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
         <div className="highlight-item"><div className="highlight-circle"></div><span>Cafe</span></div>
         <div className="highlight-item">
           <div className="highlight-circle" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: 'var(--rust)' }}>+</div>
-          <span>신규</span>
+          <span>{t('profile.highlightNew')}</span>
         </div>
       </div>
 
       <div className="profile-tabs">
-        <div className="tab active"><span>▤</span> 게시물</div>
-        <div className="tab"><span>⚑</span> 저장됨</div>
-        <div className="tab"><span>☺</span> 태그됨</div>
+        <div className="tab active"><span>▤</span> {t('profile.tabPosts')}</div>
+        <div className="tab"><span>⚑</span> {t('profile.tabSaved')}</div>
+        <div className="tab"><span>☺</span> {t('profile.tabTagged')}</div>
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: 'rgba(26,22,18,0.4)' }}>불러오는 중...</div>
+        <div style={{ textAlign: 'center', padding: 40, color: 'rgba(26,22,18,0.4)' }}>{t('profile.loading')}</div>
       ) : (
         <div className="profile-grid" id="profile-grid-container">
           {imagePosts.length > 0 ? (
@@ -161,7 +169,7 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
             ))
           ) : (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px 0', color: '#999' }}>
-              아직 게시물이 없습니다.
+              {t('profile.noPosts')}
             </div>
           )}
         </div>

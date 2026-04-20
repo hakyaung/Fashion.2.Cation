@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-// 💡 markChatAsRead 함수를 추가로 import 합니다.
+import { useTranslation } from 'react-i18next'; // 💡 다국어 훅 추가
+// 💡 markChatAsRead 함수를 포함한 API들 임포트
 import { API_URL, getOrCreateChatRoom, fetchChatHistory, markChatAsRead } from '../../api/api';
+import TranslatableText from '../common/TranslatableText'; // 💡 번역 컴포넌트 추가
 
 export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUser }) {
+  const { t } = useTranslation(); // 💡 다국어 함수 가져오기
   const [roomId, setRoomId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -33,7 +36,8 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
         await markChatAsRead(currentRoomId, currentUserId);
 
         // ==========================================
-        // 💡 [핵심 수정] 환경(Local vs HTTPS 배포) 자동 감지 무전기 주소 세팅
+        // 💡 [핵심 로직 완벽 복구 및 유지] 
+        // 환경(Local vs HTTPS 배포) 자동 감지 무전기 주소 세팅
         // ==========================================
         const isLocal = window.location.hostname === 'localhost';
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -104,7 +108,7 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
       wsRef.current.send(inputMessage);
       setInputMessage(''); 
     } else {
-      alert("서버와 연결이 끊어졌습니다. 잠시 후 다시 시도해주세요.");
+      alert(t('chat.disconnect')); // 💡 다국어 적용
     }
   };
 
@@ -131,8 +135,11 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
           alignItems: 'center', 
           backgroundColor: '#f9f9f9' 
         }}>
-          <div style={{ fontWeight: 'bold', fontSize: '16px' }}>{targetUser.nickname}님</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>&times;</button>
+          <div style={{ fontWeight: 'bold', fontSize: '16px' }}>
+            {/* 💡 다국어 적용 */}
+            {t('chat.headerName', { name: targetUser.nickname })}
+          </div>
+          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>&times;</button>
         </div>
 
         {/* 대화창 영역 */}
@@ -169,7 +176,8 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
                       fontWeight: msg.is_read ? 'normal' : 'bold',
                       marginBottom: '2px'
                     }}>
-                      {msg.is_read ? '읽음' : '안 읽음'}
+                      {/* 💡 다국어 적용 */}
+                      {msg.is_read ? t('chat.read') : t('chat.unread')}
                     </span>
                   )}
 
@@ -184,7 +192,8 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
                     boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                     wordBreak: 'break-word'
                   }}>
-                    {msg.content}
+                    {/* 💡 번역 컴포넌트 적용 (내가 보낸 메시지는 invert 속성으로 말풍선 색상 맞춤) */}
+                    <TranslatableText text={msg.content} compact invert={isMe} />
                   </div>
 
                 </div>
@@ -206,7 +215,7 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
             type="text" 
             value={inputMessage} 
             onChange={(e) => setInputMessage(e.target.value)} 
-            placeholder="메시지 보내기..." 
+            placeholder={t('chat.placeholder')} // 💡 다국어 적용
             style={{ 
               flex: 1, 
               padding: '12px 18px', 
@@ -230,7 +239,7 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
               transition: 'all 0.2s'
             }}
           >
-            전송
+            {t('chat.send')} {/* 💡 다국어 적용 */}
           </button>
         </form>
       </div>

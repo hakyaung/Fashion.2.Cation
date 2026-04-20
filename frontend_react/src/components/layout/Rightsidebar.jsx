@@ -1,37 +1,46 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 export default function RightSidebar({ onOpenPostModal }) {
+  const { t } = useTranslation();
+
+  const areas = [
+    { rank: 1, nameKey: 'rightSidebar.area1', members: '12,430' },
+    { rank: 2, nameKey: 'rightSidebar.area2', members: '45,120' },
+    { rank: 3, nameKey: 'rightSidebar.area3', members: '8,920' },
+  ];
+
   return (
     <aside className="right-sidebar">
       <div className="widget">
-        <h3 className="widget-title">인기 커뮤니티 지역</h3>
+        <h3 className="widget-title">{t('rightSidebar.trendingTitle')}</h3>
         <ul className="trending-list">
-          {[
-            { rank: 1, name: '천안 · 불당동', members: '12,430' },
-            { rank: 2, name: '서울 · 홍대', members: '45,120' },
-            { rank: 3, name: '천안 · 신부동', members: '8,920' },
-          ].map((item) => (
+          {areas.map((item) => (
             <li key={item.rank}>
               <div className="trend-info">
                 <span className="trend-rank">{item.rank}</span>
                 <div className="trend-details">
-                  <h4>{item.name}</h4>
-                  <p>멤버 {item.members}명</p>
+                  <h4>{t(item.nameKey)}</h4>
+                  <p>{t('rightSidebar.membersLabel', { count: item.members })}</p>
                 </div>
               </div>
-              <button className="btn-join">가입</button>
+              <button type="button" className="btn-join">
+                {t('rightSidebar.join')}
+              </button>
             </li>
           ))}
         </ul>
       </div>
 
       <div className="widget write-widget" style={{ borderColor: 'var(--rust)', background: 'var(--off-white)' }}>
-        <h3 className="widget-title" style={{ color: 'var(--rust)' }}>새로운 스타일 공유</h3>
+        <h3 className="widget-title" style={{ color: 'var(--rust)' }}>
+          {t('rightSidebar.writeWidgetTitle')}
+        </h3>
         <p style={{ fontSize: 12, color: 'rgba(26,22,18,0.6)', marginBottom: 16, lineHeight: 1.5 }}>
-          오늘 당신의 OOTD나 패션 인사이트를 커뮤니티에 나누어보세요.
+          {t('rightSidebar.writeWidgetDesc')}
         </p>
-        <button className="btn-write" onClick={onOpenPostModal}>
-          글쓰기 ✦
+        <button type="button" className="btn-write" onClick={onOpenPostModal}>
+          {t('rightSidebar.writeBtn')}
         </button>
       </div>
     </aside>

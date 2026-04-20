@@ -1,91 +1,139 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 export default function LeftSidebar({ activeView, activeSort, onNavigate, onSort, onNearby, onTagSearch }) {
+  const { t } = useTranslation();
+
   return (
     <aside className="left-sidebar">
       <ul className="sidebar-menu">
-        <li className="menu-title">메인</li>
+        <li className="menu-title">{t('leftSidebar.sectionMain')}</li>
         <li>
           <a
             href="#"
             className={activeView === 'home' ? 'active' : ''}
-            onClick={(e) => { e.preventDefault(); onNavigate('home'); }}
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate('home');
+            }}
           >
-            <span>⌂</span> 홈
+            <span>⌂</span> {t('leftSidebar.home')}
           </a>
         </li>
         <li>
           <a
             href="#"
             className={activeView === 'profile' ? 'active' : ''}
-            onClick={(e) => { e.preventDefault(); onNavigate('profile'); }}
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate('profile');
+            }}
           >
-            <span>☺</span> 프로필
+            <span>☺</span> {t('leftSidebar.profile')}
           </a>
         </li>
         <li>
           <a
             href="#"
             className={activeView === 'messages' ? 'active' : ''}
-            onClick={(e) => { e.preventDefault(); onNavigate('messages'); }}
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate('messages');
+            }}
           >
-            <span>✉</span> 메시지
+            <span>✉</span> {t('leftSidebar.messages')}
           </a>
         </li>
-        {/* 💡 [추가됨] 패션 평가 메뉴 */}
         <li>
           <a
             href="#"
             className={activeView === 'fashion-eval' ? 'active' : ''}
-            onClick={(e) => { e.preventDefault(); onNavigate('fashion-eval'); }}
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate('fashion-eval');
+            }}
           >
-            <span>◇</span> 패션 평가
+            <span>◇</span> {t('leftSidebar.fashionEval')}
           </a>
         </li>
 
-        <li className="menu-title" style={{ marginTop: 30 }}>피드 필터</li>
+        <li className="menu-title" style={{ marginTop: 30 }}>
+          {t('leftSidebar.sectionFeed')}
+        </li>
         <li>
           <a
             href="#"
             className={activeSort === 'latest' ? 'active' : ''}
-            onClick={(e) => { e.preventDefault(); onSort('latest'); }}
+            onClick={(e) => {
+              e.preventDefault();
+              onSort('latest');
+            }}
           >
-            <span>✦</span> 최신 스타일
+            <span>✦</span> {t('leftSidebar.latest')}
           </a>
         </li>
         <li>
           <a
             href="#"
             className={activeSort === 'popular' ? 'active' : ''}
-            onClick={(e) => { e.preventDefault(); onSort('popular'); }}
+            onClick={(e) => {
+              e.preventDefault();
+              onSort('popular');
+            }}
           >
-            <span>⟡</span> 인기 트렌드
+            <span>⟡</span> {t('leftSidebar.popular')}
           </a>
         </li>
         <li>
           <a
             href="#"
             className={activeSort === 'nearby' ? 'active' : ''}
-            onClick={(e) => { e.preventDefault(); onNearby(); }}
+            onClick={(e) => {
+              e.preventDefault();
+              onNearby();
+            }}
           >
-            <span>⚑</span> 내 주변 지역
+            <span>⚑</span> {t('leftSidebar.nearby')}
           </a>
         </li>
 
-        <li className="menu-title" style={{ marginTop: 30 }}>토픽</li>
+        <li className="menu-title" style={{ marginTop: 30 }}>
+          {t('leftSidebar.sectionTopics')}
+        </li>
         <li>
-          <a href="#" className="topic-tag" onClick={(e) => { e.preventDefault(); onTagSearch('불당동'); }}>
-            #불당동
+          <a
+            href="#"
+            className="topic-tag"
+            onClick={(e) => {
+              e.preventDefault();
+              onTagSearch('불당동');
+            }}
+          >
+            #{t('leftSidebar.topicBuldang')}
           </a>
         </li>
         <li>
-          <a href="#" className="topic-tag" onClick={(e) => { e.preventDefault(); onTagSearch('신부동'); }}>
-            #신부동
+          <a
+            href="#"
+            className="topic-tag"
+            onClick={(e) => {
+              e.preventDefault();
+              onTagSearch('신부동');
+            }}
+          >
+            #{t('leftSidebar.topicSinbu')}
           </a>
         </li>
         <li>
-          <a href="#" className="topic-tag" onClick={(e) => { e.preventDefault(); onTagSearch('미니멀룩'); }}>
-            #미니멀룩
+          <a
+            href="#"
+            className="topic-tag"
+            onClick={(e) => {
+              e.preventDefault();
+              onTagSearch('미니멀룩');
+            }}
+          >
+            #{t('leftSidebar.topicMinimal')}
           </a>
         </li>
       </ul>

@@ -1,12 +1,24 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next'; // 💡 다국어 훅 추가
 import { fetchPosts } from '../../api/api';
 import PostCard from './PostCard';
 import useInfiniteScroll from '../../hooks/Useinfinitescroll';
 
 const LIMIT = 5;
 
-// 💡 1. 원래 코드에 있던 onProfileClick을 유지하여 매개변수로 받습니다.
-export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOpen, onEditOpen, isActive, onProfileClick }) {
+// 💡 1. 원래 코드에 있던 onProfileClick을 유지하고, 새롭게 추가된 userGeo, onFeedSort도 받습니다.
+export default function FeedView({
+  sort,
+  searchKeyword,
+  userGeo,
+  onTagSearch,
+  onCommentOpen,
+  onEditOpen,
+  isActive,
+  onProfileClick,
+  onFeedSort,
+}) {
+  const { t, i18n } = useTranslation(); // 💡 번역 함수 및 언어 객체 가져오기
   const [posts, setPosts] = useState([]);
   const [skip, setSkip] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,14 +62,16 @@ export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOp
           limit: LIMIT,
           sort: prevSortRef.current,
           q: prevKeywordRef.current,
+          lat: userGeo?.lat ?? null, // 💡 주변 지역 검색을 위한 좌표 추가
+          lng: userGeo?.lng ?? null,
         });
 
         if (newPosts.length < LIMIT) {
           setHasMore(false);
           setLoadingMsg(
-            newPosts.length === 0 && currentSkip === 0
-              ? '찾으시는 스타일이 아직 없네요! 🌿'
-              : '마지막 스타일입니다. ✦'
+            newPosts.length === 0 && currentSkip === 0 
+              ? t('feed.emptySearch') // 💡 다국어 적용
+              : t('feed.endOfFeed')
           );
         } else {
           setLoadingMsg('');
@@ -66,13 +80,13 @@ export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOp
         setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
         setSkip(currentSkip + LIMIT);
       } catch (err) {
-        setLoadingMsg('데이터 로드 실패');
+        setLoadingMsg(t('feed.loadError')); // 💡 다국어 적용
       } finally {
         setIsLoading(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isLoading]
+    [isLoading, t, userGeo]
   );
 
   const handleLoadMore = useCallback(() => {
@@ -111,7 +125,7 @@ export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOp
     );
   }, []);
 
-  // 💡 추가된 기능: 댓글이 삭제되었을 때 피드에서 댓글 수를 실시간으로 줄여줍니다.
+  // 💡 댓글이 삭제되었을 때 피드에서 댓글 수를 실시간으로 줄여줍니다.
   const handleCommentCountDecrease = useCallback((postId) => {
     setPosts((prev) =>
       prev.map((p) =>
@@ -127,23 +141,29 @@ export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOp
     setPosts((prev) => prev.filter((p) => p.id !== postId));
   }, []);
 
+  // 💡 언어 설정 (중국어 분기 처리 포함)
+  const locale = i18n.language?.startsWith('zh') ? 'zh-CN' : i18n.language;
+
   return (
     <div id="view-home">
       <div className="feed-header">
         <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: 'var(--warm-black)' }}>
-          Live Community
+          {t('feed.title')}
         </h1>
         <div className="feed-filters">
-          <button
-            className={sort === 'latest' ? 'active' : ''}
-            onClick={() => onTagSearch && prevSortRef.current !== 'latest' && resetAndLoad()}
+          <button 
+            type="button" 
+            className={sort === 'latest' ? 'active' : ''} 
+            onClick={() => onFeedSort && onFeedSort('latest')}
           >
-            최신순
+            {t('feed.sortLatest')}
           </button>
-          <button
-            className={sort === 'popular' ? 'active' : ''}
+          <button 
+            type="button" 
+            className={sort === 'popular' ? 'active' : ''} 
+            onClick={() => onFeedSort && onFeedSort('popular')}
           >
-            인기순
+            {t('feed.sortPopular')}
           </button>
         </div>
       </div>
@@ -154,7 +174,7 @@ export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOp
             key={post.id}
             post={post}
             onTagSearch={onTagSearch}
-            // 💡 수정된 부분: 댓글 추가/삭제 함수와 게시물 주인 ID를 함께 넘겨줍니다.
+            // 💡 댓글 추가/삭제 함수와 게시물 주인 ID를 함께 넘겨줍니다.
             onCommentOpen={(postId, postUserId) =>
               onCommentOpen(postId, postUserId, handleCommentCountIncrease, handleCommentCountDecrease)
             }
@@ -162,13 +182,14 @@ export default function FeedView({ sort, searchKeyword, onTagSearch, onCommentOp
             onDeleted={handleDeleted}
             onLikeToggle={handleLikeToggle}
             // 💡 2. 원래 코드에 있던 프로필 클릭 기능을 잃어버리지 않고 넘겨줍니다!
-            onProfileClick={onProfileClick} 
+            onProfileClick={onProfileClick}
+            dateLocale={locale} // 💡 날짜 표시용 언어값 전달
           />
         ))}
       </div>
 
       <div id="loading-indicator" className="loading-indicator" style={{ display: isLoading || loadingMsg ? 'block' : 'none' }}>
-        {isLoading ? <span>✦ Loading more styles...</span> : loadingMsg}
+        {isLoading ? <span>{t('feed.loadingMore')}</span> : loadingMsg}
       </div>
     </div>
   );

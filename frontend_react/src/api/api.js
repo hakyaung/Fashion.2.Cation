@@ -1,6 +1,8 @@
 // ==========================================
 // 💡 스마트 API URL 자동 설정 로직
 // ==========================================
+import { ApiError } from './ApiError';
+
 function getApiUrl() {
   const host = window.location.hostname;
   if (
@@ -57,7 +59,7 @@ export async function fetchPosts({ skip = 0, limit = 5, sort = 'latest', lat = n
   if (q && String(q).trim()) url += `&q=${encodeURIComponent(String(q).trim())}`;
 
   const res = await fetch(url, { headers });
-  if (!res.ok) throw new Error('피드 로드 실패');
+  if (!res.ok) throw new ApiError('FEED_LOAD');
   return res.json();
 }
 
@@ -68,7 +70,7 @@ export async function fetchMyPosts() {
   const token = getToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${API_URL}/api/v1/posts/?skip=0&limit=30`, { headers });
-  if (!res.ok) throw new Error('프로필 로드 실패');
+  if (!res.ok) throw new ApiError('PROFILE_POSTS_LOAD');
   return res.json();
 }
 
@@ -81,7 +83,7 @@ export async function toggleLikeApi(postId) {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('좋아요 실패');
+  if (!res.ok) throw new ApiError('LIKE_FAILED');
   return res.json(); // { status: 'liked' | 'unliked' }
 }
 
@@ -92,7 +94,7 @@ export async function ensureLikeApi(postId) {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('좋아요 실패');
+  if (!res.ok) throw new ApiError('LIKE_ENSURE_FAILED');
   return res.json(); // { status: 'liked' | 'already_liked' }
 }
 
@@ -101,7 +103,7 @@ export async function ensureLikeApi(postId) {
 // ==========================================
 export async function fetchComments(postId) {
   const res = await fetch(`${API_URL}/api/v1/posts/${postId}/comments`);
-  if (!res.ok) throw new Error('댓글 로드 실패');
+  if (!res.ok) throw new ApiError('COMMENTS_LOAD');
   return res.json();
 }
 
@@ -115,7 +117,7 @@ export async function postComment(postId, content) {
     },
     body: JSON.stringify({ content }),
   });
-  if (!res.ok) throw new Error('댓글 작성 실패');
+  if (!res.ok) throw new ApiError('COMMENT_POST');
   return res.json();
 }
 
@@ -131,12 +133,12 @@ export async function updateCommentApi(postId, commentId, content) {
     body: JSON.stringify({ content }),
   });
   if (!res.ok) {
-    let msg = '댓글 수정 실패';
+    let detail = null;
     try {
       const j = await res.json();
-      if (typeof j.detail === 'string') msg = j.detail;
+      if (typeof j.detail === 'string') detail = j.detail;
     } catch (e) {}
-    throw new Error(msg);
+    throw new ApiError('COMMENT_PATCH', detail);
   }
   return res.json();
 }
@@ -149,12 +151,12 @@ export async function deleteCommentApi(postId, commentId) {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
-    let msg = '댓글 삭제 실패';
+    let detail = null;
     try {
       const j = await res.json();
-      if (typeof j.detail === 'string') msg = j.detail;
+      if (typeof j.detail === 'string') detail = j.detail;
     } catch (e) {}
-    throw new Error(msg);
+    throw new ApiError('COMMENT_DELETE', detail);
   }
   return res.json();
 }
@@ -185,12 +187,12 @@ export async function uploadPost({ locationId, content, tags, file }) {
   });
 
   if (!res.ok) {
-    let detail = '업로드 실패';
+    let detail = null;
     try {
       const err = await res.json();
-      detail = err.detail || detail;
+      if (typeof err.detail === 'string') detail = err.detail;
     } catch (_) {}
-    throw new Error(detail);
+    throw new ApiError('POST_UPLOAD', detail);
   }
   return res.json();
 }
@@ -208,7 +210,7 @@ export async function editPostApi(postId, { content, user_tags }) {
     },
     body: JSON.stringify({ content, user_tags }),
   });
-  if (!res.ok) throw new Error('수정 권한이 없거나 오류가 발생했습니다.');
+  if (!res.ok) throw new ApiError('POST_EDIT');
   return res.json();
 }
 
@@ -221,7 +223,7 @@ export async function deletePostApi(postId) {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('삭제 권한이 없거나 오류가 발생했습니다.');
+  if (!res.ok) throw new ApiError('POST_DELETE');
   return true;
 }
 
@@ -230,7 +232,7 @@ export async function deletePostApi(postId) {
 // ==========================================
 export async function searchLocations(keyword) {
   const res = await fetch(`${API_URL}/api/v1/locations/search?q=${encodeURIComponent(keyword)}`);
-  if (!res.ok) throw new Error('지역 검색 실패');
+  if (!res.ok) throw new ApiError('LOCATION_SEARCH');
   return res.json();
 }
 
@@ -247,7 +249,14 @@ export async function loginApi(email, password) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: formData,
   });
-  if (!res.ok) throw new Error('이메일이나 비밀번호가 틀렸습니다.');
+  if (!res.ok) {
+    let detail = null;
+    try {
+      const j = await res.json();
+      if (typeof j.detail === 'string') detail = j.detail;
+    } catch (_) {}
+    throw new ApiError('LOGIN_FAILED', detail);
+  }
   return res.json(); // { access_token }
 }
 
@@ -257,7 +266,14 @@ export async function registerApi(email, nickname, password) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, nickname, password }),
   });
-  if (!res.ok) throw new Error('회원가입에 실패했습니다.');
+  if (!res.ok) {
+    let detail = null;
+    try {
+      const j = await res.json();
+      if (typeof j.detail === 'string') detail = j.detail;
+    } catch (_) {}
+    throw new ApiError('REGISTER_FAILED', detail);
+  }
   return res.json();
 }
 
@@ -275,7 +291,7 @@ export async function fetchUserProfile(userId) {
   const token = getToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${API_URL}/api/v1/users/${userId}/profile`, { headers });
-  if (!res.ok) throw new Error('프로필 로드 실패');
+  if (!res.ok) throw new ApiError('USER_PROFILE_LOAD');
   return res.json();
 }
 
@@ -292,7 +308,7 @@ export async function updateProfileApi(profileData) {
     },
     body: JSON.stringify(profileData),
   });
-  if (!res.ok) throw new Error('프로필 업데이트 실패');
+  if (!res.ok) throw new ApiError('PROFILE_UPDATE');
   return res.json();
 }
 
@@ -305,7 +321,7 @@ export async function toggleFollowApi(targetUserId) {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('팔로우 처리 실패');
+  if (!res.ok) throw new ApiError('FOLLOW_FAILED');
   return res.json();
 }
 
@@ -327,7 +343,7 @@ export async function uploadProfileImageApi(file) {
     body: formData,
   });
 
-  if (!res.ok) throw new Error('이미지 업로드 실패');
+  if (!res.ok) throw new ApiError('PROFILE_IMAGE_UPLOAD');
   return res.json();
 }
 
@@ -345,7 +361,7 @@ export async function getOrCreateChatRoom(targetUserId) {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` }
   });
-  if (!res.ok) throw new Error("채팅방 생성/조회 실패");
+  if (!res.ok) throw new ApiError('CHAT_ROOM');
   return res.json(); // { room_id: 123 }
 }
 
@@ -355,7 +371,7 @@ export async function fetchChatHistory(roomId) {
   const res = await fetch(`${API_URL}/api/v1/chat/${roomId}/messages`, {
     headers: { Authorization: `Bearer ${token}` }
   });
-  if (!res.ok) throw new Error("채팅 내역 로드 실패");
+  if (!res.ok) throw new ApiError('CHAT_HISTORY');
   return res.json();
 }
 
@@ -364,7 +380,7 @@ export async function fetchChatHistory(roomId) {
 // ==========================================
 export async function searchUsersApi(keyword) {
   const res = await fetch(`${API_URL}/api/v1/users/search?q=${encodeURIComponent(keyword)}`);
-  if (!res.ok) throw new Error('유저 검색 실패');
+  if (!res.ok) throw new ApiError('USER_SEARCH');
   return res.json();
 }
 
@@ -374,7 +390,7 @@ export const markChatAsRead = async (roomId, currentUserId) => {
     const res = await fetch(`${API_URL}/api/v1/chat/room/${roomId}/read?current_user_id=${currentUserId}`, {
       method: 'PUT',
     });
-    if (!res.ok) throw new Error('읽음 처리 실패');
+    if (!res.ok) throw new ApiError('CHAT_READ');
     return await res.json();
   } catch (error) {
     console.error(error);

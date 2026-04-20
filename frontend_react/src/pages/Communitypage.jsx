@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react'; 
+import React, { useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next'; // 💡 [추가됨] 다국어 번역 훅
 import { useAuth } from '../context/Authcontext';
 
 // 레이아웃 및 뷰
@@ -9,7 +10,7 @@ import MobileNav from '../components/layout/Mobilenav';
 import FeedView from '../components/feed/Feedview';
 import ProfileView from '../components/profile/Profileview';
 import MessageListView from '../components/chat/MessageListView';
-import FashionEvalView from '../components/fashion/FashionEvalView'; // 💡 [추가됨] 패션 평가 뷰
+import FashionEvalView from '../components/fashion/FashionEvalView'; // 💡 패션 평가 뷰
 
 // 모달
 import AuthModal from '../components/modals/Authmodal';
@@ -19,6 +20,7 @@ import EditModal from '../components/modals/Editmodal';
 import ChatRoomModal from '../components/modals/ChatRoomModal'; 
 
 export default function CommunityPage() {
+  const { t } = useTranslation(); // 💡 [추가됨] 다국어 번역 함수 가져오기
   const { isLoggedIn, openAuthModal, currentUserId } = useAuth(); 
 
   // ==========================================
@@ -38,12 +40,12 @@ export default function CommunityPage() {
 
   const handleOpenChat = useCallback((user) => {
     if (!isLoggedIn) {
-      alert('채팅을 이용하려면 로그인이 필요합니다.');
+      alert(t('community.needLoginChat')); // 💡 [수정됨] 다국어 적용
       openAuthModal('login');
       return;
     }
     setChatModal({ isOpen: true, targetUser: user });
-  }, [isLoggedIn, openAuthModal]);
+  }, [isLoggedIn, openAuthModal, t]);
 
   // ==========================================
   // 모달 상태
@@ -52,9 +54,9 @@ export default function CommunityPage() {
   const [commentModal, setCommentModal] = useState({
     open: false,
     postId: null,
-    postOwnerId: null, // 💡 [추가됨] 댓글 권한 관리용
+    postOwnerId: null, // 💡 댓글 권한 관리용
     onAdded: null,
-    onRemoved: null,   // 💡 [추가됨] 댓글 삭제 업데이트용
+    onRemoved: null,   // 💡 댓글 삭제 업데이트용
   });
   const [editModal, setEditModal] = useState({ open: false, post: null });
 
@@ -76,7 +78,7 @@ export default function CommunityPage() {
     (view, targetUserId = null) => {
       if (view === 'profile' || view === 'messages') {
         if (!isLoggedIn && !targetUserId) {
-          alert('이 기능을 이용하려면 로그인이 필요합니다.');
+          alert(t('community.needLoginFeature')); // 💡 [수정됨] 다국어 적용
           openAuthModal('login');
           return;
         }
@@ -87,10 +89,10 @@ export default function CommunityPage() {
       setActiveView(view);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
-    [isLoggedIn, openAuthModal]
+    [isLoggedIn, openAuthModal, t]
   );
 
-  // 💡 [유지됨] 피드에서 프로필 사진이나 이름 클릭 시 호출될 함수 (기존 기능)
+  // 💡 피드에서 프로필 사진이나 이름 클릭 시 호출될 함수 (기존 기능 유지)
   const handleProfileClick = useCallback((userId) => {
     if (!userId) return;
     handleNavigate('profile', userId);
@@ -114,7 +116,7 @@ export default function CommunityPage() {
 
   const handleNearby = useCallback(() => {
     if (!('geolocation' in navigator)) {
-      alert('이 브라우저는 위치 정보를 지원하지 않습니다.');
+      alert(t('community.geoUnsupported')); // 💡 [수정됨] 다국어 적용
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -126,10 +128,10 @@ export default function CommunityPage() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       },
       () => {
-        alert('위치 정보 권한이 거부되었습니다.');
+        alert(t('community.geoDenied')); // 💡 [수정됨] 다국어 적용
       }
     );
-  }, []);
+  }, [t]);
 
   const handleOpenPostModal = useCallback(() => {
     if (!isLoggedIn) {
@@ -147,7 +149,7 @@ export default function CommunityPage() {
     setFeedKey((k) => k + 1);
   }, []);
 
-  // 💡 [수정됨] 매개변수가 확장된 댓글 오픈 핸들러
+  // 💡 매개변수가 확장된 댓글 오픈 핸들러 (유지)
   const handleCommentOpen = useCallback((postId, postOwnerId, onAdded, onRemoved) => {
     setCommentModal({ open: true, postId, postOwnerId, onAdded, onRemoved });
   }, []);
@@ -188,7 +190,8 @@ export default function CommunityPage() {
               onTagSearch={handleTagSearch}
               onCommentOpen={handleCommentOpen}
               onEditOpen={handleEditOpen}
-              onProfileClick={handleProfileClick} // 💡 [유지됨] FeedView로 함수 전달
+              onProfileClick={handleProfileClick} 
+              onFeedSort={handleSort} // 💡 [추가됨] FeedView 내부 정렬 변경용
               isActive={activeView === 'home'}
             />
           )}
@@ -209,7 +212,7 @@ export default function CommunityPage() {
             />
           )}
 
-          {/* 💡 [추가됨] 패션 평가 뷰 라우팅 */}
+          {/* 💡 패션 평가 뷰 라우팅 유지 */}
           {activeView === 'fashion-eval' && <FashionEvalView />}
         </main>
 
@@ -232,7 +235,7 @@ export default function CommunityPage() {
         onPosted={handlePosted}
       />
 
-      {/* 💡 [수정됨] 추가된 props를 모두 받는 CommentModal */}
+      {/* 💡 추가된 props를 모두 받는 CommentModal 유지 */}
       <CommentModal
         isOpen={commentModal.open}
         postId={commentModal.postId}

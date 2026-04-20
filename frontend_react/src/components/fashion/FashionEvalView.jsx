@@ -1,28 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next'; // 💡 다국어 훅 추가
 import { fetchPosts, ensureLikeApi, resolveMediaUrl } from '../../api/api';
 import { useAuth } from '../../context/Authcontext';
 import SwipeDeck from '../swipe/SwipeDeck';
-
-const T = {
-  loading: '\uc2a4\uc640\uc774\ud504\ud560 \uc2a4\ud0c0\uc77c\uc744 \ubd88\ub7ec\uc624\ub294 \uc911...',
-  loadErr: '\uc2a4\ud0c0\uc77c\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.',
-  retry: '\ub2e4\uc2dc \uc2dc\ub3c4',
-  emptyTitle: '\ubaa8\ub4e0 \uce74\ub4dc\ub97c \ud655\uc778\ud588\uc5b4\uc694',
-  emptyHint:
-    '\uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc624\uc2dc\uac70\ub098, \uc544\ub798\uc5d0\uc11c \uc0c8 \uce74\ub4dc\ub97c \ubd88\ub7ec\uc624\uc138\uc694.',
-  reload: '\uc0c8 \uc2a4\ud0c0\uc77c \ubd88\ub7ec\uc624\uae30',
-  pageTitle: '\ud328\uc158 \ud3c9\uac00',
-  pageSub1:
-    '\uc67c\ucabd\uc73c\ub85c \uc2a4\uc640\uc774\ud504\ud558\uba74 \uc2eb\uc5b4\uc694, \uc624\ub978\ucabd\uc73c\ub85c \uc2a4\uc640\uc774\ud504\ud558\uba74 \uc88b\uc544\uc694\uc608\uc694.',
-  pageSubLogin: ' (\uc88b\uc544\uc694\ub294 \ub85c\uadf8\uc778 \ud6c4 \ubc18\uc601\ub429\ub2c8\ub2e4.)',
-  stampNope: '\uc2eb\uc5b4\uc694',
-  stampLike: '\uc88b\uc544\uc694',
-  altStyle: '\ud328\uc158 \uc2a4\ud0c0\uc77c',
-  ariaNope: '\uc2eb\uc5b4\uc694',
-  ariaLike: '\uc88b\uc544\uc694',
-  iconNope: '\u2715',
-  iconLike: '\u2665',
-};
+import TranslatableText from '../common/TranslatableText'; // 💡 텍스트 번역 컴포넌트 추가
 
 const DECK_CLASSES = {
   stackWrap: 'fashion-eval-stack-wrap',
@@ -37,6 +18,7 @@ const DECK_CLASSES = {
   stampLike: 'fashion-eval-stamp fashion-eval-stamp--like',
 };
 
+// 💡 기존 로직 완벽 유지: 썸네일 이미지가 있는 게시물만 모아서 무작위로 섞음
 async function loadPostsWithImages(minCount = 18) {
   const collected = [];
   const seen = new Set();
@@ -67,26 +49,31 @@ async function loadPostsWithImages(minCount = 18) {
   return collected;
 }
 
-function renderPostCard(post) {
-  return (
-    <>
-      <img src={resolveMediaUrl(post.image_url)} alt={post.content || T.altStyle} />
-      <div className="fashion-eval-card-body">
-        <p className="fashion-eval-caption">{post.content}</p>
-        <div className="fashion-eval-card-meta">
-          <span>{post.author}</span>
-          <span className="fashion-eval-loc">{post.location}</span>
-        </div>
-      </div>
-    </>
-  );
-}
-
 export default function FashionEvalView() {
+  const { t } = useTranslation(); // 💡 다국어 함수 가져오기
   const { isLoggedIn, openAuthModal } = useAuth();
   const [deck, setDeck] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+
+  // 💡 카드 렌더링 함수를 useCallback으로 감싸고 다국어 및 번역 컴포넌트 적용
+  const renderPostCard = useCallback(
+    (post) => (
+      <>
+        <img src={resolveMediaUrl(post.image_url)} alt={post.content || t('fashionEval.altStyle')} />
+        <div className="fashion-eval-card-body">
+          <p className="fashion-eval-caption">
+            <TranslatableText text={post.content} compact />
+          </p>
+          <div className="fashion-eval-card-meta">
+            <span>{post.author}</span>
+            <span className="fashion-eval-loc">{post.location}</span>
+          </div>
+        </div>
+      </>
+    ),
+    [t]
+  );
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -95,12 +82,12 @@ export default function FashionEvalView() {
       const posts = await loadPostsWithImages(20);
       setDeck(posts);
     } catch (e) {
-      setLoadError(T.loadErr);
+      setLoadError(t('fashionEval.loadErr')); // 💡 다국어 적용
       setDeck([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     reload();
@@ -139,19 +126,23 @@ export default function FashionEvalView() {
     [handleLike]
   );
 
-  const swipeLabels = {
-    stampNope: T.stampNope,
-    stampLike: T.stampLike,
-    iconNope: T.iconNope,
-    iconLike: T.iconLike,
-    ariaNope: T.ariaNope,
-    ariaLike: T.ariaLike,
-  };
+  // 💡 다국어 라벨 매핑 (useMemo로 최적화)
+  const swipeLabels = useMemo(
+    () => ({
+      stampNope: t('fashionEval.stampNope'),
+      stampLike: t('fashionEval.stampLike'),
+      iconNope: '\u2715',
+      iconLike: '\u2665',
+      ariaNope: t('fashionEval.ariaNope'),
+      ariaLike: t('fashionEval.ariaLike'),
+    }),
+    [t]
+  );
 
   if (loading) {
     return (
       <div className="fashion-eval">
-        <div className="fashion-eval-loading">{T.loading}</div>
+        <div className="fashion-eval-loading">{t('fashionEval.loading')}</div>
       </div>
     );
   }
@@ -162,7 +153,7 @@ export default function FashionEvalView() {
         <div className="fashion-eval-empty">
           <p>{loadError}</p>
           <button type="button" className="fashion-eval-reload" onClick={reload}>
-            {T.retry}
+            {t('fashionEval.retry')}
           </button>
         </div>
       </div>
@@ -173,10 +164,10 @@ export default function FashionEvalView() {
     return (
       <div className="fashion-eval">
         <div className="fashion-eval-empty">
-          <h2 className="fashion-eval-title">{T.emptyTitle}</h2>
-          <p>{T.emptyHint}</p>
+          <h2 className="fashion-eval-title">{t('fashionEval.emptyTitle')}</h2>
+          <p>{t('fashionEval.emptyHint')}</p>
           <button type="button" className="fashion-eval-reload" onClick={reload}>
-            {T.reload}
+            {t('fashionEval.reload')}
           </button>
         </div>
       </div>
@@ -186,10 +177,10 @@ export default function FashionEvalView() {
   return (
     <div className="fashion-eval">
       <header className="fashion-eval-header">
-        <h1 className="fashion-eval-title">{T.pageTitle}</h1>
+        <h1 className="fashion-eval-title">{t('fashionEval.pageTitle')}</h1>
         <p className="fashion-eval-sub">
-          {T.pageSub1}
-          {!isLoggedIn ? T.pageSubLogin : ''}
+          {t('fashionEval.pageSub1')}
+          {!isLoggedIn ? t('fashionEval.pageSubLogin') : ''}
         </p>
       </header>
 

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-// 💡 API_URL 대신 resolveMediaUrl을 가져옵니다.
+import { useTranslation } from 'react-i18next'; // 💡 다국어 훅 추가
+// 💡 API_URL 대신 resolveMediaUrl을 가져옵니다. (기존 로직 유지)
 import { editPostApi, resolveMediaUrl } from '../../api/api';
+import { formatApiError } from '../../utils/formatApiError'; // 💡 에러 포매터 추가
 
 /**
  * @param {object} post - 수정 대상 게시물 (null이면 닫힌 상태)
@@ -8,6 +10,7 @@ import { editPostApi, resolveMediaUrl } from '../../api/api';
  * @param {function} onEdited - 수정 완료 후 피드 새로고침 요청
  */
 export default function EditModal({ post, onClose, onEdited }) {
+  const { t } = useTranslation(); // 💡 다국어 함수 가져오기
   const isOpen = Boolean(post);
   const [content, setContent] = useState('');
   const [tags, setTags] = useState('');
@@ -28,11 +31,11 @@ export default function EditModal({ post, onClose, onEdited }) {
     setSubmitting(true);
     try {
       await editPostApi(post.id, { content, user_tags: tags });
-      alert('게시물이 성공적으로 수정되었습니다. ✦');
+      alert(t('editModal.success')); // 💡 다국어 적용
       onClose();
       onEdited();
     } catch (err) {
-      alert(err.message);
+      alert(formatApiError(t, err)); // 💡 에러 포매터 적용
     } finally {
       setSubmitting(false);
     }
@@ -52,7 +55,7 @@ export default function EditModal({ post, onClose, onEdited }) {
       onClick={handleOverlayClick}
     >
       <div className="auth-modal-content" style={{ maxWidth: 500 }}>
-        <button className="modal-close" onClick={onClose}>&times;</button>
+        <button type="button" className="modal-close" onClick={onClose}>&times;</button>
         <h3
           style={{
             fontFamily: "'Playfair Display', serif",
@@ -61,7 +64,7 @@ export default function EditModal({ post, onClose, onEdited }) {
             color: 'var(--warm-black)',
           }}
         >
-          Edit Post
+          {t('editModal.title')}
         </h3>
 
         {/* 작성자 표시 */}
@@ -91,9 +94,9 @@ export default function EditModal({ post, onClose, onEdited }) {
         {hasImage && (
           <div style={{ marginBottom: 16 }}>
             <img
-              // 💡 추가된 기능: resolveMediaUrl을 사용하여 이미지 경로를 안전하게 렌더링합니다.
+              // 💡 기존 기능 유지: resolveMediaUrl을 사용하여 이미지 경로를 안전하게 렌더링합니다.
               src={resolveMediaUrl(post.image_url)}
-              alt="기존 이미지"
+              alt={t('editModal.imageAlt')}
               style={{
                 width: '100%',
                 maxHeight: 250,
@@ -115,13 +118,13 @@ export default function EditModal({ post, onClose, onEdited }) {
           />
           <input
             type="text"
-            placeholder="태그 (쉼표로 구분, 예: 스트릿,오버핏)"
+            placeholder={t('editModal.tagsPh')}
             value={tags}
             onChange={(e) => setTags(e.target.value)}
             style={{ fontSize: 14 }}
           />
           <button type="submit" disabled={submitting} style={{ marginTop: 10 }}>
-            {submitting ? '수정 중...' : '수정 완료 ✦'}
+            {submitting ? t('editModal.submitting') : t('editModal.submitBtn')}
           </button>
         </form>
       </div>

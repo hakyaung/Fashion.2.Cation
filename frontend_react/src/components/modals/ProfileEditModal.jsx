@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next'; // 💡 다국어 훅 추가
 import { updateProfileApi, uploadProfileImageApi, API_URL } from '../../api/api';
 import { useAuth } from '../../context/Authcontext'; 
+import { formatApiError } from '../../utils/formatApiError'; // 💡 에러 포매터 추가
 import imageCompression from 'browser-image-compression'; 
 
 export default function ProfileEditModal({ isOpen, user, onClose, onUpdated }) {
+  const { t } = useTranslation(); // 💡 번역 함수 가져오기
   const { currentUserId } = useAuth();
   const [nickname, setNickname] = useState('');
   const [bio, setBio] = useState('');
@@ -70,7 +73,7 @@ export default function ProfileEditModal({ isOpen, user, onClose, onUpdated }) {
       setSelectedFile(fileToUpload);
 
     } catch (err) {
-      alert('이미지 처리 중 오류가 발생했습니다: ' + err.message);
+      alert(t('profileEdit.imageErr', { msg: formatApiError(t, err) })); // 💡 에러 포매터 및 다국어 적용
     }
   };
 
@@ -98,11 +101,11 @@ export default function ProfileEditModal({ isOpen, user, onClose, onUpdated }) {
         profile_image_url: finalImageUrl 
       });
       
-      alert('프로필이 성공적으로 변경되었습니다! ✨');
+      alert(t('profileEdit.success')); // 💡 다국어 적용
       onUpdated(); 
       onClose();
     } catch (err) {
-      alert('저장 중 오류가 발생했습니다: ' + err.message);
+      alert(t('profileEdit.saveErr', { msg: formatApiError(t, err) })); // 💡 에러 포매터 및 다국어 적용
     } finally {
       setSubmitting(false);
     }
@@ -111,13 +114,21 @@ export default function ProfileEditModal({ isOpen, user, onClose, onUpdated }) {
   return (
     <div className={`modal-overlay ${isOpen ? 'active' : ''}`} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="auth-modal-content" style={{ maxWidth: '420px', textAlign: 'center' }}>
-        <button className="modal-close" onClick={onClose}>&times;</button>
+        <button type="button" className="modal-close" onClick={onClose}>&times;</button>
         
-        <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, marginBottom: 10 }}>Edit Profile</h3>
-        <p style={{ fontSize: 12, color: '#666', marginBottom: 25 }}>나만의 스타일을 프로필에 담아보세요.</p>
+        <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, marginBottom: 10 }}>
+          {t('profileEdit.title')}
+        </h3>
+        <p style={{ fontSize: 12, color: '#666', marginBottom: 25 }}>
+          {t('profileEdit.subtitle')}
+        </p>
 
         <div style={{ marginBottom: '25px', position: 'relative', display: 'inline-block' }}>
           <div 
+            // 💡 웹 접근성(A11y) 향상을 위한 속성 추가
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
             onClick={() => fileInputRef.current.click()}
             style={{ 
               width: '110px', 
@@ -133,7 +144,7 @@ export default function ProfileEditModal({ isOpen, user, onClose, onUpdated }) {
           >
             <img 
               src={previewUrl} 
-              alt="Profile Preview" 
+              alt={t('profileEdit.previewAlt')} 
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
             <div style={{
@@ -149,7 +160,7 @@ export default function ProfileEditModal({ isOpen, user, onClose, onUpdated }) {
               fontWeight: 'bold',
               letterSpacing: '0.5px'
             }}>
-              EDIT
+              {t('profileEdit.editPhoto')}
             </div>
           </div>
           <input 
@@ -163,23 +174,33 @@ export default function ProfileEditModal({ isOpen, user, onClose, onUpdated }) {
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div style={{ textAlign: 'left', marginBottom: '15px' }}>
-            <label style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--rust)', marginLeft: '4px' }}>NICKNAME</label>
+            <label 
+              style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--rust)', marginLeft: '4px' }}
+              htmlFor="profile-nickname-input"
+            >
+              {t('profileEdit.nicknameLabel')}
+            </label>
             <input 
               type="text" 
               value={nickname} 
               onChange={(e) => setNickname(e.target.value)} 
               required 
-              placeholder="닉네임을 입력하세요"
+              placeholder={t('profileEdit.nickPh')}
               id="profile-nickname-input"
             />
           </div>
 
           <div style={{ textAlign: 'left', marginBottom: '20px' }}>
-            <label style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--rust)', marginLeft: '4px' }}>BIO</label>
+            <label 
+              style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--rust)', marginLeft: '4px' }}
+              htmlFor="profile-bio-textarea"
+            >
+              {t('profileEdit.bioLabel')}
+            </label>
             <textarea 
               value={bio} 
               onChange={(e) => setBio(e.target.value)} 
-              placeholder="당신만의 패션 무드를 설명해주세요."
+              placeholder={t('profileEdit.bioPh')}
               rows={3}
               style={{ 
                 width: '100%', 
@@ -195,7 +216,7 @@ export default function ProfileEditModal({ isOpen, user, onClose, onUpdated }) {
           </div>
 
           <button type="submit" disabled={submitting}>
-            {submitting ? '처리 중...' : '변경사항 저장 ✦'}
+            {submitting ? t('profileEdit.submitting') : t('profileEdit.submitBtn')}
           </button>
         </form>
       </div>

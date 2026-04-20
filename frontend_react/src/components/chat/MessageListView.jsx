@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next'; // 💡 다국어 훅 추가
 import { API_URL } from '../../api/api';
 
 export default function MessageListView({ currentUserId, onRoomClick }) {
+  const { t } = useTranslation(); // 💡 번역 함수 가져오기
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      setLoading(false);
+      return;
+    }
 
-    // 💡 데이터를 불러오는 함수
+    // 💡 데이터를 불러오는 함수 (기존 로직 및 쿼리 파라미터 방식 완벽 유지)
     const fetchRooms = async () => {
       try {
         const res = await fetch(`${API_URL}/api/v1/chat/rooms?current_user_id=${currentUserId}`);
+        if (!res.ok) throw new Error('fail');
         const data = await res.json();
         setRooms(data);
       } catch (e) {
@@ -25,7 +31,7 @@ export default function MessageListView({ currentUserId, onRoomClick }) {
     // 1. 컴포넌트가 마운트될 때 즉시 1회 호출
     fetchRooms();
 
-    // 💡 2. 3초(3000ms)마다 백그라운드에서 조용히 새로고침 실행 (실시간 빨간원 뱃지용)
+    // 💡 2. 3초(3000ms)마다 백그라운드에서 조용히 새로고침 실행 (실시간 빨간원 뱃지용 유지)
     const intervalId = setInterval(() => {
       fetchRooms();
     }, 3000);
@@ -39,18 +45,24 @@ export default function MessageListView({ currentUserId, onRoomClick }) {
     return url.startsWith('http') ? url : `${API_URL}${url}`;
   };
 
-  if (loading) return <div style={{ padding: '20px', textAlign: 'center' }}>메시지를 불러오는 중...</div>;
+  if (loading) {
+    // 💡 다국어 적용
+    return <div style={{ padding: '20px', textAlign: 'center' }}>{t('messages.loading')}</div>;
+  }
 
   return (
     <div className="view-messages" style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-      <h2 style={{ marginBottom: '20px', fontSize: '24px' }}>메시지</h2>
+      {/* 💡 다국어 적용 */}
+      <h2 style={{ marginBottom: '20px', fontSize: '24px' }}>{t('messages.title')}</h2>
+      
       {rooms.length === 0 ? (
-        <div style={{ color: '#999', textAlign: 'center', marginTop: '50px' }}>아직 대화 내역이 없습니다.</div>
+        // 💡 다국어 적용
+        <div style={{ color: '#999', textAlign: 'center', marginTop: '50px' }}>{t('messages.empty')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {rooms.map((room) => (
             <div 
-              key={room.id} 
+              key={room.id} // 💡 기존 데이터 구조(room.id) 유지
               onClick={() => onRoomClick(room.other_user)}
               style={{ 
                 display: 'flex', alignItems: 'center', padding: '15px', 
@@ -72,9 +84,19 @@ export default function MessageListView({ currentUserId, onRoomClick }) {
                 </div>
               </div>
               
-              {/* 💡 안 읽은 메시지가 있을 경우에만 빨간 원(뱃지) 표시 */}
+              {/* 💡 안 읽은 메시지가 있을 경우에만 빨간 원(뱃지) 표시 (기존 기능 유지) */}
               {room.unread_count > 0 && (
-                <div style={{ backgroundColor: 'var(--rust)', color: '#fff', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
+                <div style={{ 
+                  backgroundColor: 'var(--rust)', 
+                  color: '#fff', 
+                  borderRadius: '50%', 
+                  width: '20px', 
+                  height: '20px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  fontSize: '12px' 
+                }}>
                   {room.unread_count}
                 </div>
               )}

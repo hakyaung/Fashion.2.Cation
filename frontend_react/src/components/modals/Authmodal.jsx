@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next'; // 💡 다국어 훅 추가
 import { useAuth } from '../../context/Authcontext';
+import { formatApiError } from '../../utils/formatApiError'; // 💡 에러 포매터 추가
 
 export default function AuthModal() {
+  const { t } = useTranslation(); // 💡 번역 함수 가져오기
   const { authModalOpen, authMode, setAuthMode, closeAuthModal, login, register } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -28,19 +31,19 @@ export default function AuthModal() {
     if (isLogin) {
       try {
         await login(email, password);
-        alert('로그인 성공!');
+        alert(t('auth.loginSuccess')); // 💡 다국어 적용
         closeAuthModal();
       } catch (err) {
-        setError(err.message);
+        setError(formatApiError(t, err)); // 💡 에러 포매터 적용
       }
     } else {
       try {
         await register(email, nickname, password);
-        alert('회원가입 성공! 이제 로그인해주세요.');
+        alert(t('auth.registerSuccess')); // 💡 다국어 적용
         setAuthMode('login');
         setPassword('');
       } catch (err) {
-        setError(err.message);
+        setError(formatApiError(t, err)); // 💡 에러 포매터 적용
       }
     }
   };
@@ -56,7 +59,9 @@ export default function AuthModal() {
       onClick={handleOverlayClick}
     >
       <div className="auth-modal-content">
-        <button className="modal-close" onClick={closeAuthModal}>&times;</button>
+        <button type="button" className="modal-close" onClick={closeAuthModal}>
+          &times;
+        </button>
 
         <h3
           style={{
@@ -66,10 +71,10 @@ export default function AuthModal() {
             color: 'var(--warm-black)',
           }}
         >
-          {isLogin ? 'Login' : 'Register'}
+          {isLogin ? t('auth.loginTitle') : t('auth.registerTitle')}
         </h3>
         <p style={{ fontSize: 12, color: '#666', marginBottom: 24 }}>
-          Fashion.2.Cation 커뮤니티에 합류하세요.
+          {t('auth.tagline')}
         </p>
 
         {error && (
@@ -80,7 +85,7 @@ export default function AuthModal() {
           {!isLogin && (
             <input
               type="text"
-              placeholder="닉네임"
+              placeholder={t('auth.nickPh')}
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               required
@@ -88,23 +93,25 @@ export default function AuthModal() {
           )}
           <input
             type="email"
-            placeholder="이메일"
+            placeholder={t('auth.emailPh')}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
           />
           <input
             type="password"
-            placeholder="비밀번호"
+            placeholder={t('auth.passPh')}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          <button type="submit">{isLogin ? '로그인 ✦' : '회원가입 ✦'}</button>
+          <button type="submit">
+            {isLogin ? t('auth.loginBtn') : t('auth.registerBtn')}
+          </button>
         </form>
 
         <div className="auth-toggle">
-          <span>{isLogin ? '계정이 없으신가요? ' : '이미 계정이 있으신가요? '}</span>
+          <span>{isLogin ? t('auth.toggleNoAccount') : t('auth.toggleHasAccount')}</span>
           <a
             href="#"
             onClick={(e) => {
@@ -113,7 +120,7 @@ export default function AuthModal() {
               setError('');
             }}
           >
-            {isLogin ? '회원가입' : '로그인'}
+            {isLogin ? t('auth.registerLink') : t('auth.loginLink')}
           </a>
         </div>
       </div>
