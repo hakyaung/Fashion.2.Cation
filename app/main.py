@@ -12,6 +12,22 @@ from app.api import chat
 from fastapi import WebSocket, WebSocketDisconnect
 from app.core.notifier import notifier
 
+# 💡 [추가됨] 파이어베이스 관리자 SDK 임포트
+import firebase_admin
+from firebase_admin import credentials
+
+# ==========================================
+# 💡 파이어베이스 Admin SDK 초기화 (구글 로그인 토큰 검증용)
+# ==========================================
+if not firebase_admin._apps:
+    cred_path = "firebase-credentials.json"
+    if os.path.exists(cred_path):
+        cred = credentials.Certificate(cred_path)
+        firebase_admin.initialize_app(cred)
+        print("✅ Firebase Admin SDK가 성공적으로 초기화되었습니다.")
+    else:
+        print("⚠️ 경고: firebase-credentials.json 파일이 없습니다! 구글 로그인 토큰 검증이 실패할 수 있습니다.")
+
 # 1. DB 테이블 생성
 Base.metadata.create_all(bind=engine)
 

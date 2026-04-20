@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next'; // 💡 다국어 훅 추가
+import { useTranslation } from 'react-i18next'; 
 import { useAuth } from '../../context/Authcontext';
-import { formatApiError } from '../../utils/formatApiError'; // 💡 에러 포매터 추가
+import { formatApiError } from '../../utils/formatApiError'; 
 
 export default function AuthModal() {
-  const { t } = useTranslation(); // 💡 번역 함수 가져오기
-  const { authModalOpen, authMode, setAuthMode, closeAuthModal, login, register } = useAuth();
+  const { t } = useTranslation(); 
+  // 💡 loginWithGoogle을 AuthContext에서 추가로 꺼내옵니다.
+  const { authModalOpen, authMode, setAuthMode, closeAuthModal, login, register, loginWithGoogle } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,7 +15,6 @@ export default function AuthModal() {
 
   const isLogin = authMode === 'login';
 
-  // 모달 열릴 때 폼 초기화
   useEffect(() => {
     if (authModalOpen) {
       setEmail('');
@@ -31,20 +31,31 @@ export default function AuthModal() {
     if (isLogin) {
       try {
         await login(email, password);
-        alert(t('auth.loginSuccess')); // 💡 다국어 적용
+        alert(t('auth.loginSuccess')); 
         closeAuthModal();
       } catch (err) {
-        setError(formatApiError(t, err)); // 💡 에러 포매터 적용
+        setError(formatApiError(t, err)); 
       }
     } else {
       try {
         await register(email, nickname, password);
-        alert(t('auth.registerSuccess')); // 💡 다국어 적용
+        alert(t('auth.registerSuccess')); 
         setAuthMode('login');
         setPassword('');
       } catch (err) {
-        setError(formatApiError(t, err)); // 💡 에러 포매터 적용
+        setError(formatApiError(t, err)); 
       }
+    }
+  };
+
+  // 💡 구글 소셜 로그인 버튼 클릭 핸들러
+  const handleGoogleLogin = async () => {
+    try {
+      await loginWithGoogle();
+      alert('구글 계정으로 로그인되었습니다! ✨');
+      closeAuthModal();
+    } catch (err) {
+      setError('구글 로그인을 완료하지 못했습니다.');
     }
   };
 
@@ -109,6 +120,42 @@ export default function AuthModal() {
             {isLogin ? t('auth.loginBtn') : t('auth.registerBtn')}
           </button>
         </form>
+
+        {/* 💡 구글 로그인 구분선 (OR) 및 버튼 추가 영역 시작 */}
+        <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0' }}>
+          <div style={{ flex: 1, height: '1px', backgroundColor: '#ddd' }}></div>
+          <span style={{ margin: '0 10px', fontSize: '12px', color: '#888' }}>OR</span>
+          <div style={{ flex: 1, height: '1px', backgroundColor: '#ddd' }}></div>
+        </div>
+
+        <button 
+          type="button" 
+          onClick={handleGoogleLogin}
+          style={{
+            width: '100%',
+            padding: '12px',
+            backgroundColor: '#fff',
+            color: '#333',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '8px',
+            fontWeight: 'bold',
+            marginBottom: '15px'
+          }}
+        >
+          {/* 구글 로고 아이콘 */}
+          <img 
+            src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
+            alt="Google" 
+            style={{ width: '18px' }}
+          />
+          Continue with Google
+        </button>
+        {/* 💡 구글 로그인 영역 끝 */}
 
         <div className="auth-toggle">
           <span>{isLogin ? t('auth.toggleNoAccount') : t('auth.toggleHasAccount')}</span>

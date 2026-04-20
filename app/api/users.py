@@ -9,11 +9,15 @@ from uuid import UUID
 from jose import JWTError, jwt
 
 from app.db.session import get_db
-# 💡 Post 모델을 추가로 임포트했습니다.
 from app.models.models import User, Follow, Post 
 from app.core import security
 from app.core.config import settings
 from sqlalchemy import or_
+
+from app.core.security import create_access_token
+
+# 💡 [필수 추가] 파이어베이스 인증 검증용 모듈 임포트! (이게 없어서 401 에러가 났습니다)
+from firebase_admin import auth as firebase_auth
 
 router = APIRouter()
 
@@ -41,12 +45,16 @@ class UserProfileUpdate(BaseModel):
     bio: Optional[str] = None
     profile_image_url: Optional[str] = None
 
-# 💡 [새로 추가] FCM 토큰 요청 규격
+# FCM 토큰 요청 규격
 class FCMTokenRequest(BaseModel):
     fcm_token: str
 
+# 구글 로그인용 토큰 규격
+class FirebaseTokenRequest(BaseModel):
+    id_token: str
+
 # ==========================================
-# 💡 인증 의존성 함수
+# 인증 의존성 함수
 # ==========================================
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -246,7 +254,7 @@ def search_users(q: str, db: Session = Depends(get_db)):
     ]
 
 # ==========================================
-# 🔔 [새로 추가] FCM 토큰 저장 API
+# 🔔 FCM 토큰 저장 API
 # ==========================================
 @router.post("/fcm-token")
 async def update_fcm_token(
@@ -257,3 +265,44 @@ async def update_fcm_token(
     current_user.fcm_token = request.fcm_token
     db.commit()
     return {"status": "success", "message": "FCM 토큰이 성공적으로 저장되었습니다."}
+
+# ==========================================
+# 🌐 파이어베이스(구글) 소셜 로그인 연동 API
+# ==========================================
+@router.post("/firebase-login")
+def login_with_firebase(request: FirebaseTokenRequest, db: Session = Depends(get_db)):
+    try:
+        # 1. Firebase Admin으로 프론트에서 넘어온 토큰 검증 
+        # 💡 clock_skew_seconds=10 을 주어 서버 간 미세한 시간 오차(Time Skew)를 허용합니다.
+        decoded_token = firebase_auth.verify_id_token(request.id_token, clock_skew_seconds=10)
+        
+        email = decoded_token.get('email')
+        name = decoded_token.get('name', '구글유저')
+        picture = decoded_token.get('picture', '')
+
+        if not email:
+            raise HTTPException(status_code=400, detail="이메일 정보가 없습니다.")
+
+        # 2. 우리 DB에 이미 가입된 유저인지 확인
+        user = db.query(User).filter(User.email == email).first()
+
+        # 3. 처음 로그인하는 유저라면 DB에 새로 생성 (자동 회원가입)
+        if not user:
+            user = User(
+                email=email,
+                nickname=name,
+                profile_image_url=picture,
+                password_hash="SOCIAL_LOGIN", # 소셜 로그인은 비밀번호가 필요 없음
+                bio="패션 커뮤니티에 오신 것을 환영합니다!"
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        # 4. 우리 서버 전용 JWT 토큰 발급
+        access_token = create_access_token(data={"sub": str(user.id)})
+        return {"access_token": access_token, "token_type": "bearer"}
+
+    except Exception as e:
+        print("Firebase Auth Error:", e)
+        raise HTTPException(status_code=401, detail="유효하지 않은 구글 로그인입니다.")

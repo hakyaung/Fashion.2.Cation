@@ -278,6 +278,26 @@ export async function registerApi(email, nickname, password) {
 }
 
 // ==========================================
+// 💡 파이어베이스 구글 소셜 로그인 연동 API (추가됨)
+// ==========================================
+export async function firebaseLoginSyncApi(idToken) {
+  const res = await fetch(`${API_URL}/api/v1/users/firebase-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_token: idToken }),
+  });
+  if (!res.ok) {
+    let detail = null;
+    try {
+      const j = await res.json();
+      if (typeof j.detail === 'string') detail = j.detail;
+    } catch (_) {}
+    throw new ApiError('FIREBASE_LOGIN_FAILED', detail || '구글 로그인 연동에 실패했습니다.');
+  }
+  return res.json();
+}
+
+// ==========================================
 // 공유 URL
 // ==========================================
 export function getShareUrl(postId) {

@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './Authcontext'; // 💡 1. 현재 로그인한 유저 정보를 가져오기 위해 추가!
+// 💡 환경을 자동 감지하는 API_URL을 가져옵니다!
+import { API_URL } from '../api/api'; 
 
 import { messaging } from '../firebase'; // 아까 만든 firebase.js 파일 경로
 import { getToken } from 'firebase/messaging';
@@ -38,7 +40,7 @@ export const NotificationProvider = ({ children }) => {
   // ==========================================
   // 🔌 3. [핵심] 로그인 시 백엔드 무전기(WebSocket)와 연결하기!
   // ==========================================
- useEffect(() => {
+  useEffect(() => {
     if (!currentUserId) return; 
 
     // 🌟 1. FCM 푸시 알림용 집 주소(토큰) 발급받기
@@ -47,22 +49,22 @@ export const NotificationProvider = ({ children }) => {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
           
-          // ==========================================
-          // 💡 [핵심 수정] 보초병을 수동으로 찾아내서 강력하게 연결합니다!
-          // ==========================================
+          // 보초병을 수동으로 찾아내서 강력하게 연결합니다!
           const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
           
           const token = await getToken(messaging, { 
-            vapidKey: '하경님의_VAPID_KEY', // 기존 키 유지
-            serviceWorkerRegistration: registration // 💡 파이어베이스에 보초병을 직접 쥐어줍니다
+            // 🚨 하경님의 진짜 VAPID 키 유지!
+            vapidKey: 'BCUY2in8cpDPmQUDw2kbzGwf662nnysMuPzhIcYeBxCoRLuDpKtEaJOLkBuXzps5Ll3OgyZfr2RUiwt-GHtZN7c', 
+            serviceWorkerRegistration: registration 
           });
           
           console.log("🔥 내 기기의 FCM 토큰(집 주소):", token);
           
-          // (아래는 기존과 동일하게 백엔드로 토큰을 쏘는 fetch 코드)
-          const userToken = localStorage.getItem('token');
+          // 💡 로컬 스토리지 키 이름을 Authcontext와 똑같이 'stylescape_token'으로 맞춰줍니다.
+          const userToken = localStorage.getItem('stylescape_token');
           if (userToken) {
-            await fetch('https://fashion2cation.co.kr/api/v1/users/fcm-token', {
+            // 💡 [핵심 수정] 하드코딩된 라이브 주소 대신 템플릿 리터럴로 API_URL을 연결합니다!
+            await fetch(`${API_URL}/api/v1/users/fcm-token`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -94,7 +96,14 @@ export const NotificationProvider = ({ children }) => {
 
     ws.onerror = (error) => console.error("WebSocket 통신 에러:", error);
 
-    return () => ws.close(); 
+    // 💡 웹소켓이 아직 연결 중(CONNECTING)일 때 강제로 닫아서 생기던 에러를 방지합니다.
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      } else if (ws.readyState === WebSocket.CONNECTING) {
+        ws.onopen = () => ws.close();
+      }
+    };
   }, [currentUserId]);
 
   // 🧪 당장 테스트해 보기 위한 임시 스위치 (나중에 백엔드 연결 후 지울 예정)

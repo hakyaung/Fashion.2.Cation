@@ -14,3 +14,5 @@ uploads/
 
 # 맥 OS 시스템 파일 (혹시 모를 찌꺼기 방지)
 .DS_Store
+
+firebase-credentials.json
