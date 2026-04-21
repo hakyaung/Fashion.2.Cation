@@ -7,13 +7,14 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
   const [snaps, setSnaps] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 1. 스냅 데이터 로드 (로컬/AWS 자동 감지)
+  // 1. 스냅 데이터 로드 (로컬/AWS 자동 감지 및 IP 로직 유지)
   useEffect(() => {
     const fetchSnaps = async () => {
       try {
         const token = localStorage.getItem('stylescape_token');
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
         
+        // 🌐 현재 접속 환경 감지 (HTTPS/AWS vs HTTP/Local)
         const currentProtocol = window.location.protocol;
         const currentHost = window.location.hostname;
         
@@ -37,7 +38,7 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
     fetchSnaps();
   }, []);
 
-  // 💡 [추가] 댓글이 작성되었을 때 화면상의 댓글 수를 실시간으로 +1 해주는 로직
+  // 💬 댓글 작성 시 숫자를 1 올리는 로직 (기능 유지)
   const handleCommentCountIncrease = useCallback((snapId) => {
     setSnaps((prev) =>
       prev.map((s) =>
@@ -46,7 +47,7 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
     );
   }, []);
 
-  // 💡 [추가] 댓글이 삭제되었을 때 화면상의 댓글 수를 실시간으로 -1 해주는 로직
+  // 💬 댓글 삭제 시 숫자를 1 내리는 로직 (기능 유지)
   const handleCommentCountDecrease = useCallback((snapId) => {
     setSnaps((prev) =>
       prev.map((s) =>
@@ -76,21 +77,21 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
   return (
     <div className="snap-feed-container">
       {snaps.map((snap) => (
-        <SnapItem 
-          key={snap.id} 
-          snap={snap} 
-          onProfileClick={onProfileClick} 
-          
-          // 💡 [핵심 수정] 
-          // 이제 댓글 모달을 열 때, 'snap' 타입임을 알리고 
-          // 숫자를 올리고 내리는 함수(Callback)들을 함께 배달해줍니다.
-          onCommentOpen={(id, ownerId) => 
-            onCommentOpen(id, ownerId, 'snap', handleCommentCountIncrease, handleCommentCountDecrease)
-          }
-          
-          onEditOpen={onEditOpen}
-          onDeleteSnap={onDeleteSnap}
-        />
+        /* 💡 [수정] 릴스/틱톡 스타일 스냅 효과를 위해 각 아이템을 wrapper로 감쌉니다. */
+        <div className="snap-item-wrapper" key={snap.id}>
+          <SnapItem 
+            snap={snap} 
+            onProfileClick={onProfileClick} 
+            
+            // 댓글 모달 연동 및 카운트 업데이트 함수 전달 (기능 유지)
+            onCommentOpen={(id, ownerId) => 
+              onCommentOpen(id, ownerId, 'snap', handleCommentCountIncrease, handleCommentCountDecrease)
+            }
+            
+            onEditOpen={onEditOpen}
+            onDeleteSnap={onDeleteSnap}
+          />
+        </div>
       ))}
     </div>
   );

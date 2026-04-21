@@ -1,44 +1,55 @@
 /* frontend_react/src/components/snaps/SnapFeed.css */
 
-/* 1. 전체 화면 스크롤 컨테이너 (스크롤바 숨김 & 스냅 적용) */
+/* 1. 전체 화면 스크롤 컨테이너 (자석 효과의 본체) */
 .snap-feed-container {
-  height: 100%;
+  /* 네비게이션 바 높이를 제외한 전체 화면 높이 설정 */
+  height: calc(100vh - 60px); /* 상단바 높이에 따라 조절 가능 */
   width: 100%;
   overflow-y: scroll;
+  
+  /* ✨ 핵심: Y축 방향으로 강제 스냅 적용 */
   scroll-snap-type: y mandatory;
   scroll-behavior: smooth;
-  /* 스크롤바 숨기기 */
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-  background-color: transparent; /* 배경색은 부모 요소(베이지)를 따라감 */
-}
-.snap-feed-container::-webkit-scrollbar {
-  display: none;
+  
+  /* 스크롤바 숨기기 (몰입감 극대화) */
+  -ms-overflow-style: none; /* IE, Edge */
+  scrollbar-width: none; /* Firefox */
+  background-color: transparent;
 }
 
-/* 2. 개별 스냅(숏폼)을 화면 정중앙에 위치시키는 래퍼 */
+.snap-feed-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* 2. 개별 스냅 아이템을 화면 정중앙에 꽉 차게 만드는 래퍼 */
 .snap-item-wrapper {
-  height: 100vh; /* 한 화면에 무조건 하나씩 꽉 차게 */
+  /* ✨ 핵심: 래퍼의 높이를 컨테이너와 동일하게 맞춤 */
+  height: calc(100vh - 60px);
   width: 100%;
+  
+  /* ✨ 핵심: 스크롤이 끝날 때 이 요소의 시작점에 딱 붙음 */
   scroll-snap-align: start;
+  
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 20px;
+  padding: 10px; /* 모바일 대응을 위해 패딩 살짝 줄임 */
   box-sizing: border-box;
 }
 
-/* 3. 하경님의 피드 카드와 100% 똑같은 디자인 적용! */
+/* 3. 하경님의 피드 카드 디자인 (릴스/틱톡 최적화 비율) */
 .snap-card {
   width: 100%;
-  max-width: 650px; /* 기존 피드와 비슷한 너비 */
-  height: 85vh; /* 화면을 벗어나지 않는 적절한 카드 높이 */
+  max-width: 500px; /* 숏폼은 너무 넓은 것보다 500~550px이 가장 예쁩니다 */
+  height: 100%;    /* 래퍼 안에서 최대한 꽉 차게 */
+  max-height: 820px; /* 너무 길어지는 것 방지 */
   background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: transform 0.3s ease;
 }
 
 /* 4. 카드 내부 요소 디자인 */
@@ -46,101 +57,133 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 14px 18px;
+  border-bottom: 1px solid #f8f8f8;
+  flex-shrink: 0; /* 헤더 영역 크기 고정 */
 }
+
 .snap-header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
+
 .snap-header-left img {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   object-fit: cover;
+  border: 1px solid #eee;
 }
+
 .snap-header-info {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column; /* 이름과 날짜를 위아래로 배치해 가독성 업 */
+  gap: 2px;
+}
+
+.snap-header-name {
+  font-weight: 700;
+  color: #222;
   font-size: 14px;
 }
-.snap-header-name {
-  font-weight: bold;
-  color: #333;
-}
+
 .snap-header-date {
-  color: #999;
-  font-size: 12px;
+  color: #bbb;
+  font-size: 11px;
 }
+
 .snap-header-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   font-size: 12px;
-  color: #c98e6a; /* 주황색 톤 */
+  color: #d16b3c;
+  font-weight: 500;
 }
 
+/* 본문 텍스트 */
 .snap-card-text {
-  padding: 16px 20px 0;
-  font-size: 15px;
-  color: #333;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  padding: 12px 18px;
+  font-size: 14px;
+  color: #444;
+  line-height: 1.4;
+  flex-shrink: 0;
 }
+
 .snap-translate-btn {
   color: #d16b3c;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: bold;
   cursor: pointer;
+  margin-left: 6px;
+  background: #fdf3ed;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
-/* 💡 영상이 들어가는 메인 영역 (이미지 대체) */
+/* 🎬 영상 영역 (가장 넓은 비중 차지) */
 .snap-video-container {
   width: 100%;
-  flex: 1; /* 남은 공간을 영상이 꽉 채움 */
+  flex: 1; /* 남은 중앙 공간을 영상이 모두 차지 */
   background: #000;
-  margin-top: 16px;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
 .snap-video {
   width: 100%;
   height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-  object-fit: contain; /* 영상 비율 유지 (잘림 방지) */
+  object-fit: contain; /* 영상이 잘리지 않게 전체 노출 */
+  cursor: pointer;
 }
 
-/* 태그 및 푸터(하단 버튼) 디자인 */
+/* 태그 및 푸터 */
 .snap-card-tags {
-  padding: 16px 20px 0;
+  padding: 12px 18px 0;
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
+
 .snap-tag {
-  background: #fdf3ed;
-  color: #d16b3c;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: bold;
+  background: #f8f8f8;
+  color: #666;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .snap-card-footer {
-  padding: 16px 20px;
+  padding: 14px 18px;
   display: flex;
-  gap: 16px;
-  color: #666;
-  font-size: 14px;
-  border-top: 1px solid #f0f0f0;
-  margin-top: 16px;
+  justify-content: space-around; /* 버튼들을 균등하게 배치 */
+  color: #555;
+  font-size: 13px;
+  border-top: 1px solid #f8f8f8;
+  flex-shrink: 0;
 }
+
 .snap-action-btn {
   display: flex;
+  flex-direction: column; /* 아이콘과 글자를 위아래 배치해 틱톡 느낌 강조 */
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   cursor: pointer;
+  transition: color 0.2s;
+}
+
+.snap-action-btn:hover {
+  color: #d16b3c;
+}
+
+/* 비디오 로딩 스피너 디자인 추가 */
+.video-loader {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 1px;
 }
