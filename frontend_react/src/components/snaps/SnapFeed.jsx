@@ -1,5 +1,5 @@
 // frontend_react/src/components/snaps/SnapFeed.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import SnapItem from './SnapItem';
 import './SnapFeed.css';
 
@@ -7,17 +7,16 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
   const [snaps, setSnaps] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // 1. 스냅 데이터 로드 (로컬/AWS 자동 감지)
   useEffect(() => {
     const fetchSnaps = async () => {
       try {
         const token = localStorage.getItem('stylescape_token');
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
         
-        // 💡 [핵심 수정] HTTP(로컬)와 HTTPS(AWS) 환경을 모두 지원하는 동적 라우팅!
-        const currentProtocol = window.location.protocol; // 'http:' 또는 'https:'
+        const currentProtocol = window.location.protocol;
         const currentHost = window.location.hostname;
         
-        // HTTPS 환경에서는 포트(8000)를 빼고 리버스 프록시(443 포트)로 요청합니다.
         const API_URL = currentProtocol === 'https:'
           ? `https://${currentHost}/api/v1/posts/snaps`
           : `http://${currentHost}:8000/api/v1/posts/snaps`;
@@ -38,6 +37,25 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
     fetchSnaps();
   }, []);
 
+  // 💡 [추가] 댓글이 작성되었을 때 화면상의 댓글 수를 실시간으로 +1 해주는 로직
+  const handleCommentCountIncrease = useCallback((snapId) => {
+    setSnaps((prev) =>
+      prev.map((s) =>
+        s.id === snapId ? { ...s, comment_count: (s.comment_count || 0) + 1 } : s
+      )
+    );
+  }, []);
+
+  // 💡 [추가] 댓글이 삭제되었을 때 화면상의 댓글 수를 실시간으로 -1 해주는 로직
+  const handleCommentCountDecrease = useCallback((snapId) => {
+    setSnaps((prev) =>
+      prev.map((s) =>
+        s.id === snapId ? { ...s, comment_count: Math.max(0, (s.comment_count || 0) - 1) } : s
+      )
+    );
+  }, []);
+
+  // 로딩 UI
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#999' }}>
@@ -46,6 +64,7 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
     );
   }
 
+  // 빈 화면 UI
   if (snaps.length === 0) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#999' }}>
@@ -61,7 +80,14 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
           key={snap.id} 
           snap={snap} 
           onProfileClick={onProfileClick} 
-          onCommentOpen={onCommentOpen}
+          
+          // 💡 [핵심 수정] 
+          // 이제 댓글 모달을 열 때, 'snap' 타입임을 알리고 
+          // 숫자를 올리고 내리는 함수(Callback)들을 함께 배달해줍니다.
+          onCommentOpen={(id, ownerId) => 
+            onCommentOpen(id, ownerId, 'snap', handleCommentCountIncrease, handleCommentCountDecrease)
+          }
+          
           onEditOpen={onEditOpen}
           onDeleteSnap={onDeleteSnap}
         />
