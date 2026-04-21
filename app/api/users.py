@@ -1,5 +1,6 @@
 import os
 import shutil
+import uuid # 💡 [추가됨] 닉네임 중복 방지를 위한 고유 번호 생성 모듈
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -16,7 +17,7 @@ from sqlalchemy import or_
 
 from app.core.security import create_access_token
 
-# 💡 [필수 추가] 파이어베이스 인증 검증용 모듈 임포트! (이게 없어서 401 에러가 났습니다)
+# [필수 추가] 파이어베이스 인증 검증용 모듈 임포트!
 from firebase_admin import auth as firebase_auth
 
 router = APIRouter()
@@ -273,7 +274,7 @@ async def update_fcm_token(
 def login_with_firebase(request: FirebaseTokenRequest, db: Session = Depends(get_db)):
     try:
         # 1. Firebase Admin으로 프론트에서 넘어온 토큰 검증 
-        # 💡 clock_skew_seconds=10 을 주어 서버 간 미세한 시간 오차(Time Skew)를 허용합니다.
+        # clock_skew_seconds=10 을 주어 서버 간 미세한 시간 오차(Time Skew)를 허용합니다.
         decoded_token = firebase_auth.verify_id_token(request.id_token, clock_skew_seconds=10)
         
         email = decoded_token.get('email')
@@ -288,9 +289,13 @@ def login_with_firebase(request: FirebaseTokenRequest, db: Session = Depends(get
 
         # 3. 처음 로그인하는 유저라면 DB에 새로 생성 (자동 회원가입)
         if not user:
+            # 💡 [핵심 해결 방법] 닉네임 중복 방지를 위해 구글 이름 뒤에 6자리의 고유 번호를 붙여줍니다!
+            unique_suffix = str(uuid.uuid4())[:6]
+            safe_nickname = f"{name}_{unique_suffix}"
+
             user = User(
                 email=email,
-                nickname=name,
+                nickname=safe_nickname, # 💡 중복 없는 안전한 닉네임 사용
                 profile_image_url=picture,
                 password_hash="SOCIAL_LOGIN", # 소셜 로그인은 비밀번호가 필요 없음
                 bio="패션 커뮤니티에 오신 것을 환영합니다!"
