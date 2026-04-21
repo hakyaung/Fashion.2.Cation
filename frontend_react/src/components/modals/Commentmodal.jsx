@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// frontend_react/src/components/modals/Commentmodal.jsx
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchComments, postComment, updateCommentApi, deleteCommentApi } from '../../api/api';
 import { useAuth } from '../../context/Authcontext';
@@ -15,7 +16,7 @@ export default function CommentModal({
   isOpen,
   postId,
   postOwnerId,
-  type = 'post', // 💡 'post' 또는 'snap'을 받아 기능을 구분합니다.
+  type = 'post', // 'post' 또는 'snap'을 받아 기능을 구분합니다.
   onClose,
   onCommentAdded,
   onCommentRemoved,
@@ -35,19 +36,50 @@ export default function CommentModal({
   const dateLocale = i18n.language?.startsWith('zh') ? 'zh-CN' : i18n.language;
   const token = localStorage.getItem('stylescape_token');
 
-  // 💡 타입에 따른 API 엔드포인트 결정 로직
+  // 💡 [핵심 추가] 현재 접속 환경(HTTP/HTTPS, 도메인/IP)을 감지하여 동적 주소 생성
+  const currentProtocol = window.location.protocol;
+  const currentHost = window.location.hostname;
+  const API_BASE = currentProtocol === 'https:' 
+    ? `https://${currentHost}` 
+    : `http://${currentHost}:8000`;
+
+  // 💡 타입에 따른 API 엔드포인트 결정 로직 (API_BASE 적용)
   const getApiUrl = (commentId = '') => {
     const base = type === 'snap' ? 'snaps' : 'posts';
-    let url = `http://localhost:8000/api/v1/posts/${base}/${postId}/comments`;
+    let url = `${API_BASE}/api/v1/posts/${base}/${postId}/comments`;
     if (commentId) url += `/${commentId}`;
     return url;
   };
+
+  // 댓글 목록 로드
+  const loadComments = useCallback(async () => {
+    if (!postId) return;
+    setLoading(true);
+    try {
+      // 💡 타입이 snap이면 동적 URL로 fetch를 직접 사용하고, post면 기존 api 헬퍼 사용
+      if (type === 'snap') {
+        const res = await fetch(getApiUrl());
+        if (res.ok) {
+          const data = await res.json();
+          setComments(data);
+        }
+      } else {
+        const data = await fetchComments(postId);
+        setComments(data);
+      }
+    } catch (err) {
+      console.error("댓글 로드 실패:", err);
+      setComments([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [postId, type, API_BASE]);
 
   useEffect(() => {
     if (isOpen && postId) {
       loadComments();
     }
-  }, [isOpen, postId, type]);
+  }, [isOpen, postId, loadComments]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -55,27 +87,6 @@ export default function CommentModal({
       setEditDraft('');
     }
   }, [isOpen]);
-
-  // 댓글 목록 로드
-  async function loadComments() {
-    setLoading(true);
-    setComments([]);
-    try {
-      // 💡 타입이 snap이면 fetch를 직접 사용하고, post면 기존 api 헬퍼 사용
-      if (type === 'snap') {
-        const res = await fetch(getApiUrl());
-        const data = await res.json();
-        setComments(data);
-      } else {
-        const data = await fetchComments(postId);
-        setComments(data);
-      }
-    } catch (err) {
-      setComments([]);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const canModerate = (commentUserId) =>
     isLoggedIn &&
@@ -221,10 +232,10 @@ export default function CommentModal({
         >
           {loading ? (
             <div style={{ textAlign: 'center', color: '#999', marginTop: 20 }}>{t('comment.loading')}</div>
-          ) : comments.length === 0 ? (
+          ) : (comments && comments.length === 0) ? (
             <div style={{ textAlign: 'center', color: '#999', marginTop: 20 }}>{t('comment.emptyHint')}</div>
           ) : (
-            comments.map((c) => (
+            comments && comments.map((c) => (
               <div
                 key={c.id || c.created_at}
                 style={{

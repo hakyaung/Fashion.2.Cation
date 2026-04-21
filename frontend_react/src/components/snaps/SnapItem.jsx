@@ -9,12 +9,19 @@ export default function SnapItem({ snap, onProfileClick, onCommentOpen, onEditOp
   const { currentUserId } = useAuth();
   const videoRef = useRef(null);
   
-  // 상태 관리 (좋아요)
+  // 상태 관리 (좋아요 및 로딩)
   const [isLiked, setIsLiked] = useState(snap.is_liked);
   const [likeCount, setLikeCount] = useState(snap.like_count);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
 
   const token = localStorage.getItem('stylescape_token');
+
+  // 💡 [핵심] 현재 접속 환경(HTTP/HTTPS, 도메인/IP)을 감지하여 API 주소를 동적으로 설정합니다.
+  const currentProtocol = window.location.protocol;
+  const currentHost = window.location.hostname;
+  const API_BASE = currentProtocol === 'https:' 
+    ? `https://${currentHost}` 
+    : `http://${currentHost}:8000`;
 
   // 비디오 관찰자 로직 (재생/정지)
   useEffect(() => {
@@ -22,9 +29,12 @@ export default function SnapItem({ snap, onProfileClick, onCommentOpen, onEditOp
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            videoRef.current?.play().catch(() => {
-              // 브라우저 정책상 자동재생 실패 시 무시
-            });
+            // 안전장치: 비디오 소스가 존재할 때만 자동재생 시도
+            if (videoRef.current && videoRef.current.src) {
+              videoRef.current.play().catch(() => {
+                // 브라우저 정책상 자동재생 실패 시 무시
+              });
+            }
           } else {
             if (videoRef.current) {
               videoRef.current.pause();
@@ -40,13 +50,13 @@ export default function SnapItem({ snap, onProfileClick, onCommentOpen, onEditOp
     return () => observer.disconnect();
   }, []);
 
-  // ❤️ 좋아요 토글
+  // ❤️ 좋아요 토글 (동적 API 주소 적용)
   const handleLike = async (e) => {
     e.stopPropagation();
     if (!token) return alert("로그인이 필요합니다!");
     
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/posts/snaps/${snap.id}/like`, {
+      const response = await fetch(`${API_BASE}/api/v1/posts/snaps/${snap.id}/like`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -71,28 +81,35 @@ export default function SnapItem({ snap, onProfileClick, onCommentOpen, onEditOp
     }
   };
 
-  // 🛠️ 삭제 핸들러 (파이어베이스 스토리지 완전 삭제 포함)
+  // 🛠️ 삭제 핸들러 (파이어베이스 스토리지 완전 삭제 및 404 예외 처리 포함)
   const handleDelete = async (e) => {
     e.stopPropagation();
     if (window.confirm("이 스냅 영상을 삭제하시겠습니까?")) {
       try {
         if (snap.video_url && snap.video_url.includes('firebasestorage')) {
           const fileRef = ref(storage, snap.video_url);
-          await deleteObject(fileRef);
-          console.log("Firebase 스토리지 영상 파일 삭제 완료 🧹");
+          // 파일이 스토리지에 이미 없는 경우(404)를 대비해 catch 처리
+          await deleteObject(fileRef).catch(error => {
+            if (error.code === 'storage/object-not-found') {
+              console.warn("스토리지에 파일이 이미 없습니다. 계속해서 DB 삭제를 진행합니다.");
+            } else {
+              throw error;
+            }
+          });
+          console.log("Firebase 스토리지 영상 파일 처리 완료 🧹");
         }
       } catch (error) {
-        console.error("Firebase 파일 삭제 중 에러 발생:", error);
+        console.error("Firebase 파일 삭제 에러:", error);
       }
+      // 파일 삭제 여부와 상관없이 부모에게 알림 (백엔드 DB 삭제 실행)
       onDeleteSnap(snap.id);
     }
   };
 
-  // ⎘ [추가됨] 스마트 공유 핸들러
+  // ⎘ 스마트 공유 핸들러 (Web Share API 및 클립보드 복사)
   const handleShare = async (e) => {
-    e.stopPropagation(); // 비디오 재생/정지 이벤트 방지
+    e.stopPropagation(); 
     
-    // 나중에 단일 스냅 페이지가 만들어지면 쓸 수 있는 URL 형식으로 준비
     const shareUrl = `${window.location.origin}/snap/${snap.id}`;
     const shareData = {
       title: 'Fashion.2.Cation 스냅',
@@ -100,27 +117,23 @@ export default function SnapItem({ snap, onProfileClick, onCommentOpen, onEditOp
       url: shareUrl
     };
 
-    // 1. 모바일 환경 등 Web Share API를 지원하는 경우 (카카오톡, 인스타 등 네이티브 공유 창)
     if (navigator.share) {
       try {
         await navigator.share(shareData);
       } catch (err) {
         console.error('공유 취소 또는 실패:', err);
       }
-    } 
-    // 2. PC 등 지원하지 않는 환경의 경우 (클립보드 복사 폴백)
-    else {
+    } else {
       try {
         await navigator.clipboard.writeText(shareUrl);
-        alert("🔗 링크가 클립보드에 복사되었습니다!\n원하는 곳에 붙여넣기 해주세요.");
+        alert("🔗 링크가 클립보드에 복사되었습니다!");
       } catch (err) {
         alert("링크 복사에 실패했습니다.");
-        console.error('클립보드 복사 실패:', err);
       }
     }
   };
 
-  // 🖼️ 이미지 에러 핸들러 (무한루프 방지 포함)
+  // 🖼️ 이미지 에러 핸들러
   const handleImageError = (e) => {
     if (e.target.dataset.errorHandled) return;
     e.target.dataset.errorHandled = "true";
@@ -147,7 +160,6 @@ export default function SnapItem({ snap, onProfileClick, onCommentOpen, onEditOp
           <div className="snap-header-right">
             <span style={{ color: '#d16b3c', marginRight: '10px', fontSize: '13px' }}>{snap.location_name || "위치 정보 없음"}</span>
             
-            {/* 본인 글일 때만 수정/삭제 메뉴 노출 */}
             {currentUserId === snap.user_id ? (
               <div className="snap-more-menu" style={{ cursor: 'pointer', display: 'flex', gap: '8px', fontSize: '16px' }}>
                 <span onClick={(e) => { e.stopPropagation(); onEditOpen(snap); }} title="수정">✏️</span>
@@ -187,8 +199,11 @@ export default function SnapItem({ snap, onProfileClick, onCommentOpen, onEditOp
             onPlaying={() => setIsVideoLoading(false)}
             onCanPlay={() => setIsVideoLoading(false)}
             onClick={() => {
-              if (videoRef.current.paused) videoRef.current.play();
-              else videoRef.current.pause();
+              // 안전장치: 비디오가 준비되었을 때만 재생/정지 제어
+              if (videoRef.current && videoRef.current.readyState >= 2) {
+                if (videoRef.current.paused) videoRef.current.play().catch(() => {});
+                else videoRef.current.pause();
+              }
             }}
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
@@ -213,7 +228,6 @@ export default function SnapItem({ snap, onProfileClick, onCommentOpen, onEditOp
           <div className="snap-action-btn" onClick={handleCommentClick} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#666' }}>
             <span style={{ fontSize: '18px' }}>💬</span> 댓글 {snap.comment_count || 0}
           </div>
-          {/* 💡 [추가됨] onClick 이벤트에 handleShare 연결 */}
           <div className="snap-action-btn" onClick={handleShare} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#666' }}>
             <span style={{ fontSize: '18px' }}>⎘</span> 공유
           </div>
