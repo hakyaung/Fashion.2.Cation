@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next'; // 💡 다국어 훅 추가
+import { useTranslation } from 'react-i18next';
 import { fetchComments, postComment, updateCommentApi, deleteCommentApi } from '../../api/api';
 import { useAuth } from '../../context/Authcontext';
-import { formatApiError } from '../../utils/formatApiError'; // 💡 에러 포매터 추가
-import TranslatableText from '../common/TranslatableText'; // 💡 본문 번역 컴포넌트 추가
+import { formatApiError } from '../../utils/formatApiError';
+import TranslatableText from '../common/TranslatableText';
 
-// 💡 유저 일치 여부 확인용 헬퍼 함수 (기존 유지)
+// 유저 일치 여부 확인용 헬퍼 함수
 function sameUser(a, b) {
   if (a == null || b == null) return false;
   return String(a).toLowerCase() === String(b).toLowerCase();
@@ -14,36 +14,41 @@ function sameUser(a, b) {
 export default function CommentModal({
   isOpen,
   postId,
-  postOwnerId, // 💡 게시물 작성자 ID (게시물 주인도 댓글 삭제 권한을 가질 수 있도록)
+  postOwnerId,
+  type = 'post', // 💡 'post' 또는 'snap'을 받아 기능을 구분합니다.
   onClose,
   onCommentAdded,
-  onCommentRemoved, // 💡 댓글 삭제 시 피드 업데이트용
+  onCommentRemoved,
 }) {
-  const { t, i18n } = useTranslation(); // 💡 번역 함수 및 언어 객체 가져오기
+  const { t, i18n } = useTranslation();
   const { isLoggedIn, currentUserId, openAuthModal } = useAuth();
   
-  // 기존 상태
   const [comments, setComments] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // 수정 관련 상태
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState('');
   const [savingId, setSavingId] = useState(null);
 
-  // 💡 다국어 날짜 포맷 로케일
   const dateLocale = i18n.language?.startsWith('zh') ? 'zh-CN' : i18n.language;
+  const token = localStorage.getItem('stylescape_token');
+
+  // 💡 타입에 따른 API 엔드포인트 결정 로직
+  const getApiUrl = (commentId = '') => {
+    const base = type === 'snap' ? 'snaps' : 'posts';
+    let url = `http://localhost:8000/api/v1/posts/${base}/${postId}/comments`;
+    if (commentId) url += `/${commentId}`;
+    return url;
+  };
 
   useEffect(() => {
     if (isOpen && postId) {
       loadComments();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, postId]);
+  }, [isOpen, postId, type]);
 
-  // 모달이 닫힐 때 수정 중이던 상태 초기화
   useEffect(() => {
     if (!isOpen) {
       setEditingId(null);
@@ -51,12 +56,20 @@ export default function CommentModal({
     }
   }, [isOpen]);
 
+  // 댓글 목록 로드
   async function loadComments() {
     setLoading(true);
     setComments([]);
     try {
-      const data = await fetchComments(postId);
-      setComments(data);
+      // 💡 타입이 snap이면 fetch를 직접 사용하고, post면 기존 api 헬퍼 사용
+      if (type === 'snap') {
+        const res = await fetch(getApiUrl());
+        const data = await res.json();
+        setComments(data);
+      } else {
+        const data = await fetchComments(postId);
+        setComments(data);
+      }
     } catch (err) {
       setComments([]);
     } finally {
@@ -64,62 +77,93 @@ export default function CommentModal({
     }
   }
 
-  // 💡 수정/삭제 권한 체크 (댓글 작성자이거나 게시물 작성자인 경우 true - 기존 유지)
   const canModerate = (commentUserId) =>
     isLoggedIn &&
     currentUserId &&
     (sameUser(currentUserId, commentUserId) || sameUser(currentUserId, postOwnerId));
 
+  // 댓글 작성
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isLoggedIn) {
-      alert(t('comment.needLogin')); // 💡 다국어 적용
+      alert(t('comment.needLogin'));
       openAuthModal('login');
       return;
     }
     if (!input.trim()) return;
     setSubmitting(true);
     try {
-      await postComment(postId, input.trim());
+      if (type === 'snap') {
+        await fetch(getApiUrl(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ content: input.trim() })
+        });
+      } else {
+        await postComment(postId, input.trim());
+      }
       setInput('');
       loadComments();
       if (onCommentAdded) onCommentAdded(postId);
     } catch (err) {
-      alert(t('comment.postFail')); // 💡 다국어 적용
+      alert(t('comment.postFail'));
     } finally {
       setSubmitting(false);
     }
   };
 
+  // 댓글 수정 저장
   const handleSaveEdit = async (commentId) => {
     if (!isLoggedIn) return;
     const text = editDraft.trim();
     if (!text) {
-      alert(t('comment.empty')); // 💡 다국어 적용
+      alert(t('comment.empty'));
       return;
     }
     setSavingId(commentId);
     try {
-      await updateCommentApi(postId, commentId, text);
+      if (type === 'snap') {
+        await fetch(getApiUrl(commentId), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ content: text })
+        });
+      } else {
+        await updateCommentApi(postId, commentId, text);
+      }
       setEditingId(null);
       setEditDraft('');
-      loadComments(); // 수정 후 목록 새로고침
+      loadComments();
     } catch (err) {
-      alert(formatApiError(t, err) || t('comment.patchFail')); // 💡 에러 포매터 적용
+      alert(formatApiError(t, err) || t('comment.patchFail'));
     } finally {
       setSavingId(null);
     }
   };
 
+  // 댓글 삭제
   const handleDelete = async (commentId) => {
     if (!isLoggedIn) return;
-    if (!window.confirm(t('comment.confirmDel'))) return; // 💡 다국어 적용
+    if (!window.confirm(t('comment.confirmDel'))) return;
     try {
-      await deleteCommentApi(postId, commentId);
-      if (onCommentRemoved) onCommentRemoved(postId); // 부모 컴포넌트(피드)에 삭제 알림
-      loadComments(); // 삭제 후 목록 새로고침
+      if (type === 'snap') {
+        await fetch(getApiUrl(commentId), {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } else {
+        await deleteCommentApi(postId, commentId);
+      }
+      if (onCommentRemoved) onCommentRemoved(postId);
+      loadComments();
     } catch (err) {
-      alert(formatApiError(t, err) || t('comment.delFail')); // 💡 에러 포매터 적용
+      alert(formatApiError(t, err) || t('comment.delFail'));
     }
   };
 
@@ -127,7 +171,6 @@ export default function CommentModal({
     if (e.target === e.currentTarget) onClose();
   };
 
-  // 공통 버튼 스타일
   const btnMuted = {
     border: 'none',
     background: 'transparent',
@@ -166,7 +209,6 @@ export default function CommentModal({
           {t('comment.title')}
         </h3>
 
-        {/* 댓글 목록 */}
         <div
           id="commentList"
           style={{
@@ -204,9 +246,7 @@ export default function CommentModal({
                     {c.author}
                   </strong>
                   
-                  {/* 날짜 및 수정/삭제 버튼 영역 */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    {/* 권한이 있고 현재 수정 모드가 아닐 때만 버튼 표시 */}
                     {canModerate(c.user_id) && editingId !== c.id && (
                       <>
                         <button
@@ -230,7 +270,6 @@ export default function CommentModal({
                   </div>
                 </div>
 
-                {/* 💡 수정 모드 vs 일반 읽기 모드 렌더링 */}
                 {editingId === c.id ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <textarea
@@ -244,7 +283,7 @@ export default function CommentModal({
                         border: '1px solid var(--border-color)',
                         fontFamily: "'DM Sans', sans-serif",
                         fontSize: 14,
-                        resize: 'vertical',
+                        resize: 'none',
                         boxSizing: 'border-box',
                       }}
                     />
@@ -286,7 +325,6 @@ export default function CommentModal({
                       lineHeight: 1.5,
                     }}
                   >
-                    {/* 💡 본문 번역 컴포넌트 적용 */}
                     <TranslatableText text={c.content} compact />
                   </div>
                 )}
@@ -295,7 +333,6 @@ export default function CommentModal({
           )}
         </div>
 
-        {/* 댓글 입력 */}
         <form
           id="commentForm"
           onSubmit={handleSubmit}

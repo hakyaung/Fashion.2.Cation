@@ -6,7 +6,6 @@ import useInfiniteScroll from '../../hooks/Useinfinitescroll';
 
 const LIMIT = 5;
 
-// 💡 1. 원래 코드에 있던 onProfileClick을 유지하고, 새롭게 추가된 userGeo, onFeedSort도 받습니다.
 export default function FeedView({
   sort,
   searchKeyword,
@@ -70,17 +69,26 @@ export default function FeedView({
           setHasMore(false);
           setLoadingMsg(
             newPosts.length === 0 && currentSkip === 0 
-              ? t('feed.emptySearch') // 💡 다국어 적용
+              ? t('feed.emptySearch') 
               : t('feed.endOfFeed')
           );
         } else {
           setLoadingMsg('');
         }
 
-        setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
+        // 🛡️ [핵심 수정] 무한스크롤 중복 ID 철벽 방어 로직!
+        setPosts((prev) => {
+          if (reset) return newPosts;
+          
+          // 기존 게시물과 새 게시물을 합친 후, Map을 이용해 중복 ID 제거 (순서 유지)
+          const combined = [...prev, ...newPosts];
+          const uniquePosts = Array.from(new Map(combined.map(post => [post.id, post])).values());
+          return uniquePosts;
+        });
+
         setSkip(currentSkip + LIMIT);
       } catch (err) {
-        setLoadingMsg(t('feed.loadError')); // 💡 다국어 적용
+        setLoadingMsg(t('feed.loadError')); 
       } finally {
         setIsLoading(false);
       }
@@ -125,7 +133,6 @@ export default function FeedView({
     );
   }, []);
 
-  // 💡 댓글이 삭제되었을 때 피드에서 댓글 수를 실시간으로 줄여줍니다.
   const handleCommentCountDecrease = useCallback((postId) => {
     setPosts((prev) =>
       prev.map((p) =>
@@ -141,7 +148,7 @@ export default function FeedView({
     setPosts((prev) => prev.filter((p) => p.id !== postId));
   }, []);
 
-  // 💡 언어 설정 (중국어 분기 처리 포함)
+  // 💡 언어 설정
   const locale = i18n.language?.startsWith('zh') ? 'zh-CN' : i18n.language;
 
   return (
@@ -174,21 +181,19 @@ export default function FeedView({
             key={post.id}
             post={post}
             onTagSearch={onTagSearch}
-            // 💡 댓글 추가/삭제 함수와 게시물 주인 ID를 함께 넘겨줍니다.
             onCommentOpen={(postId, postUserId) =>
-              onCommentOpen(postId, postUserId, handleCommentCountIncrease, handleCommentCountDecrease)
+              onCommentOpen(postId, postUserId, 'post', handleCommentCountIncrease, handleCommentCountDecrease)
             }
             onEditOpen={onEditOpen}
             onDeleted={handleDeleted}
             onLikeToggle={handleLikeToggle}
-            // 💡 2. 원래 코드에 있던 프로필 클릭 기능을 잃어버리지 않고 넘겨줍니다!
             onProfileClick={onProfileClick}
-            dateLocale={locale} // 💡 날짜 표시용 언어값 전달
+            dateLocale={locale} 
           />
         ))}
       </div>
 
-      <div id="loading-indicator" className="loading-indicator" style={{ display: isLoading || loadingMsg ? 'block' : 'none' }}>
+      <div id="loading-indicator" className="loading-indicator" style={{ display: isLoading || loadingMsg ? 'block' : 'none', textAlign: 'center', padding: '20px 0', color: '#999' }}>
         {isLoading ? <span>{t('feed.loadingMore')}</span> : loadingMsg}
       </div>
     </div>

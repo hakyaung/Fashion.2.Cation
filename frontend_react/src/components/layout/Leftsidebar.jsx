@@ -57,6 +57,22 @@ export default function LeftSidebar({ activeView, activeSort, onNavigate, onSort
           </a>
         </li>
 
+        {/* ========================================== */}
+        {/* 💡 스냅(숏폼) 피드 메뉴만 남겨두었습니다! */}
+        {/* ========================================== */}
+        <li>
+          <a
+            href="#"
+            className={activeView === 'snap' ? 'active' : ''}
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate('snap');
+            }}
+          >
+            <span>🎬</span> 스냅
+          </a>
+        </li>
+
         <li className="menu-title" style={{ marginTop: 30 }}>
           {t('leftSidebar.sectionFeed')}
         </li>

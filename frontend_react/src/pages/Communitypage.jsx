@@ -1,5 +1,6 @@
+// frontend_react/src/pages/CommunityPage.jsx
 import React, { useState, useCallback, useRef } from 'react';
-import { useTranslation } from 'react-i18next'; // 💡 [추가됨] 다국어 번역 훅
+import { useTranslation } from 'react-i18next'; 
 import { useAuth } from '../context/Authcontext';
 
 // 레이아웃 및 뷰
@@ -10,7 +11,11 @@ import MobileNav from '../components/layout/Mobilenav';
 import FeedView from '../components/feed/Feedview';
 import ProfileView from '../components/profile/Profileview';
 import MessageListView from '../components/chat/MessageListView';
-import FashionEvalView from '../components/fashion/FashionEvalView'; // 💡 패션 평가 뷰
+import FashionEvalView from '../components/fashion/FashionEvalView'; 
+
+// 💡 스냅(숏폼) 관련 컴포넌트
+import SnapFeed from '../components/snaps/SnapFeed';
+import SnapUpload from '../components/snaps/SnapUpload';
 
 // 모달
 import AuthModal from '../components/modals/Authmodal';
@@ -20,7 +25,7 @@ import EditModal from '../components/modals/Editmodal';
 import ChatRoomModal from '../components/modals/ChatRoomModal'; 
 
 export default function CommunityPage() {
-  const { t } = useTranslation(); // 💡 [추가됨] 다국어 번역 함수 가져오기
+  const { t } = useTranslation(); 
   const { isLoggedIn, openAuthModal, currentUserId } = useAuth(); 
 
   // ==========================================
@@ -34,13 +39,13 @@ export default function CommunityPage() {
   const [userGeo, setUserGeo] = useState({ lat: null, lng: null });
 
   // ==========================================
-  // 💬 채팅 모달 상태 (전역 관리)
+  // 💬 채팅 모달 상태
   // ==========================================
   const [chatModal, setChatModal] = useState({ isOpen: false, targetUser: null });
 
   const handleOpenChat = useCallback((user) => {
     if (!isLoggedIn) {
-      alert(t('community.needLoginChat')); // 💡 [수정됨] 다국어 적용
+      alert(t('community.needLoginChat')); 
       openAuthModal('login');
       return;
     }
@@ -48,17 +53,22 @@ export default function CommunityPage() {
   }, [isLoggedIn, openAuthModal, t]);
 
   // ==========================================
-  // 모달 상태
+  // 모달 및 피드 리프레시 상태
   // ==========================================
   const [postModalOpen, setPostModalOpen] = useState(false);
+  
+  // 💡 commentModal 상태에 type(post/snap) 추가
   const [commentModal, setCommentModal] = useState({
     open: false,
     postId: null,
-    postOwnerId: null, // 💡 댓글 권한 관리용
+    postOwnerId: null, 
+    type: 'post', // 기본값은 post
     onAdded: null,
-    onRemoved: null,   // 💡 댓글 삭제 업데이트용
+    onRemoved: null,  
   });
-  const [editModal, setEditModal] = useState({ open: false, post: null });
+  
+  // 💡 [수정됨] EditModal 상태에도 type을 추가합니다!
+  const [editModal, setEditModal] = useState({ open: false, post: null, type: 'post' });
 
   const [feedKey, setFeedKey] = useState(0);
 
@@ -76,9 +86,9 @@ export default function CommunityPage() {
 
   const handleNavigate = useCallback(
     (view, targetUserId = null) => {
-      if (view === 'profile' || view === 'messages') {
+      if (view === 'profile' || view === 'messages' || view === 'snap-upload') {
         if (!isLoggedIn && !targetUserId) {
-          alert(t('community.needLoginFeature')); // 💡 [수정됨] 다국어 적용
+          alert(t('community.needLoginFeature')); 
           openAuthModal('login');
           return;
         }
@@ -92,7 +102,6 @@ export default function CommunityPage() {
     [isLoggedIn, openAuthModal, t]
   );
 
-  // 💡 피드에서 프로필 사진이나 이름 클릭 시 호출될 함수 (기존 기능 유지)
   const handleProfileClick = useCallback((userId) => {
     if (!userId) return;
     handleNavigate('profile', userId);
@@ -116,7 +125,7 @@ export default function CommunityPage() {
 
   const handleNearby = useCallback(() => {
     if (!('geolocation' in navigator)) {
-      alert(t('community.geoUnsupported')); // 💡 [수정됨] 다국어 적용
+      alert(t('community.geoUnsupported')); 
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -128,7 +137,7 @@ export default function CommunityPage() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       },
       () => {
-        alert(t('community.geoDenied')); // 💡 [수정됨] 다국어 적용
+        alert(t('community.geoDenied')); 
       }
     );
   }, [t]);
@@ -149,17 +158,38 @@ export default function CommunityPage() {
     setFeedKey((k) => k + 1);
   }, []);
 
-  // 💡 매개변수가 확장된 댓글 오픈 핸들러 (유지)
-  const handleCommentOpen = useCallback((postId, postOwnerId, onAdded, onRemoved) => {
-    setCommentModal({ open: true, postId, postOwnerId, onAdded, onRemoved });
+  // 💡 handleCommentOpen이 type을 인자로 받도록 수정
+  const handleCommentOpen = useCallback((postId, postOwnerId, type = 'post', onAdded, onRemoved) => {
+    setCommentModal({ open: true, postId, postOwnerId, type, onAdded, onRemoved });
   }, []);
 
-  const handleEditOpen = useCallback((post) => {
-    setEditModal({ open: true, post });
+  // 💡 [수정됨] handleEditOpen이 type을 인자로 받도록 수정
+  const handleEditOpen = useCallback((post, type = 'post') => {
+    setEditModal({ open: true, post, type });
   }, []);
 
   const handleEdited = useCallback(() => {
     setFeedKey((k) => k + 1);
+  }, []);
+
+  const handleDeleteSnap = useCallback(async (snapId) => {
+    const token = localStorage.getItem('stylescape_token');
+    if (!token) return;
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/v1/posts/snaps/${snapId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        setFeedKey(k => k + 1); 
+      } else {
+        alert("삭제에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("삭제 에러:", error);
+    }
   }, []);
 
   return (
@@ -191,7 +221,7 @@ export default function CommunityPage() {
               onCommentOpen={handleCommentOpen}
               onEditOpen={handleEditOpen}
               onProfileClick={handleProfileClick} 
-              onFeedSort={handleSort} // 💡 [추가됨] FeedView 내부 정렬 변경용
+              onFeedSort={handleSort} 
               isActive={activeView === 'home'}
             />
           )}
@@ -212,11 +242,37 @@ export default function CommunityPage() {
             />
           )}
 
-          {/* 💡 패션 평가 뷰 라우팅 유지 */}
           {activeView === 'fashion-eval' && <FashionEvalView />}
+
+          {/* ========================================== */}
+          {/* 🎬 스냅(숏폼) 뷰 */}
+          {/* ========================================== */}
+          {activeView === 'snap' && (
+            <SnapFeed 
+              key={`snap-${feedKey}`}
+              onProfileClick={handleProfileClick}
+              onCommentOpen={(id, ownerId) => handleCommentOpen(id, ownerId, 'snap')} 
+              // 💡 [수정됨] 스냅을 수정할 때 'snap' 꼬리표를 확실하게 달아줍니다!
+              onEditOpen={(snap) => handleEditOpen(snap, 'snap')}
+              onDeleteSnap={handleDeleteSnap}
+            />
+          )}
+          
+          {activeView === 'snap-upload' && (
+            <SnapUpload 
+              onUploadComplete={() => {
+                setFeedKey(k => k + 1);
+                setActiveView('snap'); 
+              }} 
+            />
+          )}
         </main>
 
-        <RightSidebar onOpenPostModal={handleOpenPostModal} />
+        <RightSidebar 
+          activeView={activeView}
+          onOpenPostModal={handleOpenPostModal}
+          onOpenSnapUpload={() => handleNavigate('snap-upload')} 
+        />
       </div>
 
       <MobileNav
@@ -235,16 +291,18 @@ export default function CommunityPage() {
         onPosted={handlePosted}
       />
 
-      {/* 💡 추가된 props를 모두 받는 CommentModal 유지 */}
+      {/* 💡 type 프롭을 CommentModal에 전달 */}
       <CommentModal
         isOpen={commentModal.open}
         postId={commentModal.postId}
         postOwnerId={commentModal.postOwnerId}
+        type={commentModal.type} 
         onClose={() =>
           setCommentModal({
             open: false,
             postId: null,
             postOwnerId: null,
+            type: 'post',
             onAdded: null,
             onRemoved: null,
           })
@@ -253,9 +311,11 @@ export default function CommunityPage() {
         onCommentRemoved={commentModal.onRemoved}
       />
 
+      {/* 💡 [수정됨] type 프롭을 EditModal에 전달하여 API 주소를 구분하게 합니다. */}
       <EditModal
         post={editModal.open ? editModal.post : null}
-        onClose={() => setEditModal({ open: false, post: null })}
+        type={editModal.type} 
+        onClose={() => setEditModal({ open: false, post: null, type: 'post' })}
         onEdited={handleEdited}
       />
 

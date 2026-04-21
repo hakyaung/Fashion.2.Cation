@@ -1,0 +1,146 @@
+/* frontend_react/src/components/snaps/SnapFeed.css */
+
+/* 1. 전체 화면 스크롤 컨테이너 (스크롤바 숨김 & 스냅 적용) */
+.snap-feed-container {
+  height: 100%;
+  width: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  /* 스크롤바 숨기기 */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  background-color: transparent; /* 배경색은 부모 요소(베이지)를 따라감 */
+}
+.snap-feed-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* 2. 개별 스냅(숏폼)을 화면 정중앙에 위치시키는 래퍼 */
+.snap-item-wrapper {
+  height: 100vh; /* 한 화면에 무조건 하나씩 꽉 차게 */
+  width: 100%;
+  scroll-snap-align: start;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* 3. 하경님의 피드 카드와 100% 똑같은 디자인 적용! */
+.snap-card {
+  width: 100%;
+  max-width: 650px; /* 기존 피드와 비슷한 너비 */
+  height: 85vh; /* 화면을 벗어나지 않는 적절한 카드 높이 */
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 4. 카드 내부 요소 디자인 */
+.snap-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.snap-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.snap-header-left img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.snap-header-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+.snap-header-name {
+  font-weight: bold;
+  color: #333;
+}
+.snap-header-date {
+  color: #999;
+  font-size: 12px;
+}
+.snap-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: #c98e6a; /* 주황색 톤 */
+}
+
+.snap-card-text {
+  padding: 16px 20px 0;
+  font-size: 15px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.snap-translate-btn {
+  color: #d16b3c;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* 💡 영상이 들어가는 메인 영역 (이미지 대체) */
+.snap-video-container {
+  width: 100%;
+  flex: 1; /* 남은 공간을 영상이 꽉 채움 */
+  background: #000;
+  margin-top: 16px;
+  position: relative;
+}
+.snap-video {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  object-fit: contain; /* 영상 비율 유지 (잘림 방지) */
+}
+
+/* 태그 및 푸터(하단 버튼) 디자인 */
+.snap-card-tags {
+  padding: 16px 20px 0;
+  display: flex;
+  gap: 8px;
+}
+.snap-tag {
+  background: #fdf3ed;
+  color: #d16b3c;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.snap-card-footer {
+  padding: 16px 20px;
+  display: flex;
+  gap: 16px;
+  color: #666;
+  font-size: 14px;
+  border-top: 1px solid #f0f0f0;
+  margin-top: 16px;
+}
+.snap-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}

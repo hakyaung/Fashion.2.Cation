@@ -3,6 +3,8 @@ import { initializeApp } from "firebase/app";
 import { getMessaging, onMessage } from "firebase/messaging";
 // 💡 인증 기능을 위해 Auth 모듈 추가 임포트
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
+// 💡 숏폼(영상) 저장을 위해 Storage 모듈 추가 임포트
+import { getStorage } from "firebase/storage"; 
 
 const firebaseConfig = {
   apiKey: "AIzaSyAs7_aWLEutr9_mAARn39GwiInruxMXdYM",
@@ -20,7 +22,7 @@ const app = initializeApp(firebaseConfig);
 // 2. 메시징(FCM) 초기화 및 내보내기
 export const messaging = getMessaging(app);
 
-// 3. 인증(Auth) 초기화 및 내보내기 💡 (추가됨)
+// 3. 인증(Auth) 초기화 및 내보내기
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -28,6 +30,9 @@ export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
+
+// 4. 스토리지(Storage) 초기화 및 내보내기 💡 (추가됨)
+export const storage = getStorage(app);
 
 // 포그라운드 메시지 리스너 (기존 코드 유지)
 export const onMessageListener = () =>
