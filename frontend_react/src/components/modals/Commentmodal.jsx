@@ -92,7 +92,7 @@ export default function CommentModal({
     currentUserId &&
     (sameUser(currentUserId, commentUserId) || sameUser(currentUserId, postOwnerId));
 
-  // 💡 [수정] 댓글 작성 (성공 시 실패 알림 뜨는 버그 해결)
+  // 댓글 작성
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isLoggedIn) {
@@ -115,7 +115,6 @@ export default function CommentModal({
           body: JSON.stringify({ content: commentContent })
         });
         
-        // 💡 중요: fetch는 4xx, 5xx 에러에도 throw하지 않으므로 ok 체크 필수
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.detail || 'Post failed');
@@ -124,10 +123,13 @@ export default function CommentModal({
         await postComment(postId, commentContent);
       }
       
-      // ✅ 위 과정에서 에러가 없어야만 아래 실행
       setInput('');
       loadComments();
-      if (onCommentAdded) onCommentAdded(postId);
+      
+      // 💡 [핵심 수정] 전달받은 값이 진짜 '함수'일 때만 실행하도록 타입 검사 강화
+      if (typeof onCommentAdded === 'function') {
+        onCommentAdded(postId);
+      }
     } catch (err) {
       console.error("댓글 작성 에러:", err);
       alert(formatApiError(t, err) || t('comment.postFail'));
@@ -183,7 +185,12 @@ export default function CommentModal({
       } else {
         await deleteCommentApi(postId, commentId);
       }
-      if (onCommentRemoved) onCommentRemoved(postId);
+      
+      // 💡 [핵심 수정] 삭제 시 카운트 다운 함수도 진짜 '함수'인지 확인 후 실행
+      if (typeof onCommentRemoved === 'function') {
+        onCommentRemoved(postId);
+      }
+      
       loadComments();
     } catch (err) {
       alert(formatApiError(t, err) || t('comment.delFail'));
