@@ -14,11 +14,11 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
         const token = localStorage.getItem('stylescape_token');
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
         
-        // 브라우저 환경 감지
+        // 브라우저 환경 감지 (HTTPS/AWS vs HTTP/Local)
         const currentProtocol = window.location.protocol;
         const currentHost = window.location.hostname;
         
-        // 하경님의 핵심 IP 로직: 배포 환경(HTTPS)과 로컬(8000포트) 자동 분기
+        // 💡 하경님의 핵심 IP 로직: 접속 주소에 따라 백엔드 URL을 동적으로 결정
         const API_URL = currentProtocol === 'https:'
           ? `https://${currentHost}/api/v1/posts/snaps`
           : `http://${currentHost}:8000/api/v1/posts/snaps`;
@@ -60,8 +60,8 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
   // 로딩 상태 UI
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh', color: '#999' }}>
-        스냅을 불러오는 중입니다... 🎬
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#000', color: '#fff' }}>
+        <div className="reels-loader">스냅을 불러오는 중... 🎬</div>
       </div>
     );
   }
@@ -69,8 +69,8 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
   // 데이터 없을 때 UI
   if (snaps.length === 0) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh', color: '#999' }}>
-        아직 등록된 스냅이 없습니다. 첫 스냅의 주인공이 되어보세요! ✨
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#000', color: '#999' }}>
+        아직 등록된 스냅이 없습니다. ✨
       </div>
     );
   }
@@ -78,17 +78,24 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
   return (
     <div className="snap-feed-container">
       {snaps.map((snap) => (
-        /* ✨ 핵심: 디자인은 기존과 동일하지만, 
-          CSS의 scroll-snap-align: start를 작동시키기 위해 각 아이템을 wrapper로 감쌉니다.
+        /* ✨ 핵심: CSS의 scroll-snap-align: start를 작동시키기 위해 
+           각 SnapItem을 snap-item-wrapper로 감쌉니다. 
+           이 구조가 있어야 릴스처럼 한 화면씩 딱딱 끊겨서 보입니다. 
         */
         <div className="snap-item-wrapper" key={snap.id}>
           <SnapItem 
             snap={snap} 
             onProfileClick={onProfileClick} 
             
-            // 💡 댓글 모달 연동 및 실시간 카운트 업데이트 콜백 전달
+            // 💡 댓글 모달 연동 및 실시간 카운트 업데이트 콜백 완벽 전달
             onCommentOpen={(id, ownerId) => 
-              onCommentOpen(id, ownerId, 'snap', handleCommentCountIncrease, handleCommentCountDecrease)
+              onCommentOpen(
+                id, 
+                ownerId, 
+                'snap', 
+                handleCommentCountIncrease, 
+                handleCommentCountDecrease
+              )
             }
             
             onEditOpen={onEditOpen}

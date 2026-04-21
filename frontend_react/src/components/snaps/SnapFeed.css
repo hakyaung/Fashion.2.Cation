@@ -1,15 +1,17 @@
 /* frontend_react/src/components/snaps/SnapFeed.css */
 
-/* 1. 전체 화면 스크롤 컨테이너 */
+/* 1. 전체 화면 스크롤 컨테이너 (릴스 배경 처리) */
 .snap-feed-container {
-  /* 상단 네비게이션 높이를 제외한 영역 */
-  height: calc(100vh - 70px); 
+  height: calc(100vh - 70px); /* 상단바 제외 영역 */
   width: 100%;
   overflow-y: scroll;
   
-  /* ✨ 핵심: 자석 효과 적용 (Y축 mandatory) */
+  /* ✨ 핵심: 자석 효과 적용 */
   scroll-snap-type: y mandatory;
   scroll-behavior: smooth;
+  
+  /* 릴스 감성을 위해 배경을 검정색으로 설정 */
+  background-color: #000;
   
   /* 스크롤바 숨기기 */
   -ms-overflow-style: none;
@@ -20,159 +22,199 @@
   display: none;
 }
 
-/* 2. 개별 스냅 아이템 래퍼 (디자인 간격 유지) */
+/* 2. 개별 스냅 아이템 래퍼 (화면 꽉 채우기) */
 .snap-item-wrapper {
+  height: 100%;
   width: 100%;
-  /* ✨ 핵심: 스크롤 시 카드의 시작점이 컨테이너 상단에 붙음 */
   scroll-snap-align: start;
-  
   display: flex;
   justify-content: center;
   align-items: center;
-  /* 기존 피드처럼 카드 사이의 여백을 줌 */
-  padding: 20px 0 40px 0; 
-  box-sizing: border-box;
+  position: relative;
 }
 
-/* 3. 하경님의 오리지널 카드 디자인 (650px 복구) */
-.snap-card {
+/* 3. 릴스 아이템 메인 컨테이너 */
+.reels-item-container {
+  position: relative;
   width: 100%;
-  max-width: 650px; /* 원래의 넓은 크기로 복구 */
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  max-width: 480px; /* 릴스 최적화 너비 */
+  height: 100%;
+  background: #000;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
-/* 4. 카드 내부 요소 디자인 (가로 배치 UI 복구) */
-.snap-card-header {
+/* 🎬 배경 비디오 */
+.reels-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* 영상 비율 유지 */
+  z-index: 1;
+}
+
+/* 🌑 하단 텍스트 가독성을 위한 그라데이션 */
+.reels-overlay-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* 👤 4. 좌측 하단 정보 섹션 (오버레이) */
+.reels-info-section {
+  position: absolute;
+  bottom: 30px;
+  left: 16px;
+  right: 80px; /* 우측 버튼 영역 확보 */
+  z-index: 3;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+.reels-user-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
+  gap: 10px;
+  margin-bottom: 14px;
+  cursor: pointer;
 }
 
-.snap-header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.snap-header-left img {
-  width: 40px;
-  height: 40px;
+.reels-avatar {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
+  border: 1.5px solid #fff;
   object-fit: cover;
 }
 
-.snap-header-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-}
-
-.snap-header-name {
-  font-weight: bold;
-  color: #333;
-}
-
-.snap-header-date {
-  color: #999;
-  font-size: 12px;
-}
-
-.snap-header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 12px;
-  color: #c98e6a; /* 기존 포인트 컬러 */
-}
-
-/* 본문 텍스트 영역 */
-.snap-card-text {
-  padding: 16px 20px 0;
+.reels-username {
+  font-weight: 700;
   font-size: 15px;
-  color: #333;
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
-.snap-translate-btn {
-  color: #d16b3c;
+.reels-follow-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 6px;
   font-size: 12px;
-  font-weight: bold;
+  font-weight: 600;
   cursor: pointer;
 }
 
-/* 🎬 영상 영역 (기존 비율 유지) */
-.snap-video-container {
-  width: 100%;
-  background: #000;
-  margin-top: 16px;
-  position: relative;
-  /* 가로가 넓은 기존 카드 스타일을 위해 높이 비율 조정 */
-  aspect-ratio: 16 / 9; 
+.reels-content-box {
+  margin-bottom: 12px;
 }
 
-.snap-video {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+.reels-text {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.reels-translate-link {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
   cursor: pointer;
+  text-decoration: underline;
 }
 
-/* 태그 영역 */
-.snap-card-tags {
-  padding: 16px 20px 0;
+.reels-tags-row {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
 }
 
-.snap-tag {
-  background: #fdf3ed;
-  color: #d16b3c;
-  padding: 6px 12px;
-  border-radius: 20px;
+.reels-tag-item {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+}
+
+.reels-location-tag {
   font-size: 12px;
-  font-weight: bold;
+  color: rgba(255,255,255,0.7);
+  font-weight: 500;
 }
 
-/* 5. 푸터 액션바 (기존 가로 배치 UI 복구) */
-.snap-card-footer {
-  padding: 16px 20px;
+/* ❤️ 5. 우측 세로 액션 버튼 섹션 */
+.reels-actions-column {
+  position: absolute;
+  right: 12px;
+  bottom: 40px;
   display: flex;
-  gap: 20px; /* 버튼 사이 간격 */
-  color: #666;
-  font-size: 14px;
-  border-top: 1px solid #f0f0f0;
-  margin-top: 16px;
-}
-
-.snap-action-btn {
-  display: flex;
-  flex-direction: row; /* 세로가 아닌 가로 배치로 복구 */
+  flex-direction: column;
+  gap: 20px;
   align-items: center;
-  gap: 6px;
+  z-index: 3;
+}
+
+.reels-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
   cursor: pointer;
-  transition: opacity 0.2s;
 }
 
-.snap-action-btn:hover {
-  opacity: 0.7;
+.reels-icon-circle {
+  font-size: 26px;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-/* 비디오 로딩 스피너 */
-.video-loader {
+.reels-action-btn:active .reels-icon-circle {
+  transform: scale(0.8);
+}
+
+.reels-icon-circle.liked {
+  color: #ff4d4f;
+  animation: heartPop 0.3s ease-out;
+}
+
+@keyframes heartPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+.reels-action-count {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* 비디오 로더 */
+.reels-loader {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: #fff;
+  color: rgba(255, 255, 255, 0.5);
   font-size: 12px;
+  z-index: 1;
+}
+
+/* 모바일 대응: 전체 화면 꽉 채우기 */
+@media (max-width: 768px) {
+  .snap-feed-container {
+    height: calc(100vh - 65px); /* 모바일 네비바 높이 고려 */
+  }
+  .reels-item-container {
+    max-width: 100%;
+    border-radius: 0;
+  }
 }

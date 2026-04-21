@@ -13,7 +13,7 @@ import ProfileView from '../components/profile/Profileview';
 import MessageListView from '../components/chat/MessageListView';
 import FashionEvalView from '../components/fashion/FashionEvalView'; 
 
-// 💡 스냅(숏폼) 관련 컴포넌트
+// 스냅(숏폼) 관련 컴포넌트
 import SnapFeed from '../components/snaps/SnapFeed';
 import SnapUpload from '../components/snaps/SnapUpload';
 
@@ -29,35 +29,24 @@ export default function CommunityPage() {
   const { isLoggedIn, openAuthModal, currentUserId } = useAuth(); 
 
   // ==========================================
-  // 뷰 상태
+  // 뷰 및 검색 상태
   // ==========================================
   const [activeView, setActiveView] = useState('home'); 
   const [viewUserId, setViewUserId] = useState(null); 
-
   const [sort, setSort] = useState('latest');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [userGeo, setUserGeo] = useState({ lat: null, lng: null });
+  const [feedKey, setFeedKey] = useState(0);
+  const [debouncedKeyword, setDebouncedKeyword] = useState('');
+  const searchTimerRef = useRef(null);
 
   // ==========================================
-  // 💬 채팅 모달 상태
+  // 💬 채팅 및 모달 상태
   // ==========================================
   const [chatModal, setChatModal] = useState({ isOpen: false, targetUser: null });
-
-  const handleOpenChat = useCallback((user) => {
-    if (!isLoggedIn) {
-      alert(t('community.needLoginChat')); 
-      openAuthModal('login');
-      return;
-    }
-    setChatModal({ isOpen: true, targetUser: user });
-  }, [isLoggedIn, openAuthModal, t]);
-
-  // ==========================================
-  // 모달 및 피드 리프레시 상태
-  // ==========================================
   const [postModalOpen, setPostModalOpen] = useState(false);
   
-  // 💡 commentModal 상태 (type으로 post/snap 구분)
+  // 💡 commentModal 상태: type 뿐만 아니라 실시간 카운트 함수(onAdded, onRemoved)를 담습니다.
   const [commentModal, setCommentModal] = useState({
     open: false,
     postId: null,
@@ -67,14 +56,11 @@ export default function CommunityPage() {
     onRemoved: null,  
   });
   
-  // 💡 EditModal 상태 (type으로 post/snap 구분)
   const [editModal, setEditModal] = useState({ open: false, post: null, type: 'post' });
 
-  const [feedKey, setFeedKey] = useState(0);
-
-  // 검색 디바운스
-  const searchTimerRef = useRef(null);
-  const [debouncedKeyword, setDebouncedKeyword] = useState('');
+  // ==========================================
+  // 핸들러 함수들
+  // ==========================================
 
   const handleSearchChange = useCallback((value) => {
     setSearchKeyword(value);
@@ -84,23 +70,29 @@ export default function CommunityPage() {
     }, 400);
   }, []);
 
-  const handleNavigate = useCallback(
-    (view, targetUserId = null) => {
-      if (view === 'profile' || view === 'messages' || view === 'snap-upload') {
-        if (!isLoggedIn && !targetUserId) {
-          alert(t('community.needLoginFeature')); 
-          openAuthModal('login');
-          return;
-        }
-        setViewUserId(targetUserId); 
-      } else {
-        setViewUserId(null); 
+  const handleNavigate = useCallback((view, targetUserId = null) => {
+    if (view === 'profile' || view === 'messages' || view === 'snap-upload') {
+      if (!isLoggedIn && !targetUserId) {
+        alert(t('community.needLoginFeature')); 
+        openAuthModal('login');
+        return;
       }
-      setActiveView(view);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    },
-    [isLoggedIn, openAuthModal, t]
-  );
+      setViewUserId(targetUserId); 
+    } else {
+      setViewUserId(null); 
+    }
+    setActiveView(view);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [isLoggedIn, openAuthModal, t]);
+
+  const handleOpenChat = useCallback((user) => {
+    if (!isLoggedIn) {
+      alert(t('community.needLoginChat')); 
+      openAuthModal('login');
+      return;
+    }
+    setChatModal({ isOpen: true, targetUser: user });
+  }, [isLoggedIn, openAuthModal, t]);
 
   const handleProfileClick = useCallback((userId) => {
     if (!userId) return;
@@ -136,9 +128,7 @@ export default function CommunityPage() {
         setFeedKey((k) => k + 1);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       },
-      () => {
-        alert(t('community.geoDenied')); 
-      }
+      () => alert(t('community.geoDenied'))
     );
   }, [t]);
 
@@ -158,6 +148,7 @@ export default function CommunityPage() {
     setFeedKey((k) => k + 1);
   }, []);
 
+  // 💡 [핵심 유지] 댓글 모달 오픈 핸들러
   const handleCommentOpen = useCallback((postId, postOwnerId, type = 'post', onAdded, onRemoved) => {
     setCommentModal({ open: true, postId, postOwnerId, type, onAdded, onRemoved });
   }, []);
@@ -170,7 +161,7 @@ export default function CommunityPage() {
     setFeedKey((k) => k + 1);
   }, []);
 
-  // 💡 [수정됨] 스냅 삭제 시 AWS/로컬 환경 자동 감지 로직 적용
+  // 💡 [기능 유지] IP 자동 감지 로직이 포함된 스냅 삭제 핸들러
   const handleDeleteSnap = useCallback(async (snapId) => {
     const token = localStorage.getItem('stylescape_token');
     if (!token) return;
@@ -178,11 +169,7 @@ export default function CommunityPage() {
     try {
       const currentProtocol = window.location.protocol;
       const currentHost = window.location.hostname;
-      
-      // HTTPS(AWS)면 443 포트, HTTP(로컬)면 8000 포트
-      const API_BASE = currentProtocol === 'https:'
-        ? `https://${currentHost}`
-        : `http://${currentHost}:8000`;
+      const API_BASE = currentProtocol === 'https:' ? `https://${currentHost}` : `http://${currentHost}:8000`;
 
       const response = await fetch(`${API_BASE}/api/v1/posts/snaps/${snapId}`, {
         method: 'DELETE',
@@ -225,7 +212,6 @@ export default function CommunityPage() {
               searchKeyword={debouncedKeyword}
               userGeo={userGeo}
               onTagSearch={handleTagSearch}
-              // 일반 피드이므로 type='post'를 명시적으로 전달
               onCommentOpen={(postId, postUserId, onAdded, onRemoved) =>
                 handleCommentOpen(postId, postUserId, 'post', onAdded, onRemoved)
               }
@@ -237,31 +223,23 @@ export default function CommunityPage() {
           )}
 
           {activeView === 'profile' && (
-            <ProfileView 
-              targetUserId={viewUserId} 
-              onOpenChat={handleOpenChat} 
-            />
+            <ProfileView targetUserId={viewUserId} onOpenChat={handleOpenChat} />
           )}
 
           {activeView === 'messages' && (
-            <MessageListView 
-              currentUserId={currentUserId} 
-              onRoomClick={(targetUser) => {
-                handleOpenChat(targetUser);
-              }} 
-            />
+            <MessageListView currentUserId={currentUserId} onRoomClick={handleOpenChat} />
           )}
 
           {activeView === 'fashion-eval' && <FashionEvalView />}
 
-          {/* ========================================== */}
-          {/* 🎬 스냅(숏폼) 뷰 */}
-          {/* ========================================== */}
           {activeView === 'snap' && (
             <SnapFeed 
               key={`snap-${feedKey}`}
               onProfileClick={handleProfileClick}
-              onCommentOpen={(id, ownerId) => handleCommentOpen(id, ownerId, 'snap')} 
+              // 💡 [수정 포인트] SnapFeed에서 전달하는 onAdded, onRemoved 인자를 handleCommentOpen으로 토스합니다.
+              onCommentOpen={(id, ownerId, type, onAdded, onRemoved) => 
+                handleCommentOpen(id, ownerId, type, onAdded, onRemoved)
+              }
               onEditOpen={(snap) => handleEditOpen(snap, 'snap')}
               onDeleteSnap={handleDeleteSnap}
             />
@@ -293,28 +271,15 @@ export default function CommunityPage() {
 
       {/* ===== 공통 모달 레이어 ===== */}
       <AuthModal />
-
-      <PostModal
-        isOpen={postModalOpen}
-        onClose={() => setPostModalOpen(false)}
-        onPosted={handlePosted}
-      />
+      <PostModal isOpen={postModalOpen} onClose={() => setPostModalOpen(false)} onPosted={handlePosted} />
 
       <CommentModal
         isOpen={commentModal.open}
         postId={commentModal.postId}
         postOwnerId={commentModal.postOwnerId}
         type={commentModal.type} 
-        onClose={() =>
-          setCommentModal({
-            open: false,
-            postId: null,
-            postOwnerId: null,
-            type: 'post',
-            onAdded: null,
-            onRemoved: null,
-          })
-        }
+        onClose={() => setCommentModal({ open: false, postId: null, postOwnerId: null, type: 'post', onAdded: null, onRemoved: null })}
+        // 💡 상태에 저장된 카운트 업데이트 함수를 모달에 전달
         onCommentAdded={commentModal.onAdded}
         onCommentRemoved={commentModal.onRemoved}
       />
