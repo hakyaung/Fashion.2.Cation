@@ -36,14 +36,14 @@ export default function CommentModal({
   const dateLocale = i18n.language?.startsWith('zh') ? 'zh-CN' : i18n.language;
   const token = localStorage.getItem('stylescape_token');
 
-  // 💡 [핵심 추가] 현재 접속 환경(HTTP/HTTPS, 도메인/IP)을 감지하여 동적 주소 생성
+  // 💡 [기능 유지] 현재 접속 환경(HTTP/HTTPS, 도메인/IP)을 감지하여 동적 주소 생성
   const currentProtocol = window.location.protocol;
   const currentHost = window.location.hostname;
   const API_BASE = currentProtocol === 'https:' 
     ? `https://${currentHost}` 
     : `http://${currentHost}:8000`;
 
-  // 💡 타입에 따른 API 엔드포인트 결정 로직 (API_BASE 적용)
+  // 💡 [기능 유지] 타입에 따른 API 엔드포인트 결정 로직
   const getApiUrl = (commentId = '') => {
     const base = type === 'snap' ? 'snaps' : 'posts';
     let url = `${API_BASE}/api/v1/posts/${base}/${postId}/comments`;
@@ -56,16 +56,15 @@ export default function CommentModal({
     if (!postId) return;
     setLoading(true);
     try {
-      // 💡 타입이 snap이면 동적 URL로 fetch를 직접 사용하고, post면 기존 api 헬퍼 사용
       if (type === 'snap') {
         const res = await fetch(getApiUrl());
         if (res.ok) {
           const data = await res.json();
-          setComments(data);
+          setComments(Array.isArray(data) ? data : []);
         }
       } else {
         const data = await fetchComments(postId);
-        setComments(data);
+        setComments(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       console.error("댓글 로드 실패:", err);
@@ -93,7 +92,7 @@ export default function CommentModal({
     currentUserId &&
     (sameUser(currentUserId, commentUserId) || sameUser(currentUserId, postOwnerId));
 
-  // 댓글 작성
+  // 💡 [수정] 댓글 작성 (성공 시 실패 알림 뜨는 버그 해결)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isLoggedIn) {
@@ -101,26 +100,37 @@ export default function CommentModal({
       openAuthModal('login');
       return;
     }
-    if (!input.trim()) return;
+    const commentContent = input.trim();
+    if (!commentContent) return;
+
     setSubmitting(true);
     try {
       if (type === 'snap') {
-        await fetch(getApiUrl(), {
+        const response = await fetch(getApiUrl(), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ content: input.trim() })
+          body: JSON.stringify({ content: commentContent })
         });
+        
+        // 💡 중요: fetch는 4xx, 5xx 에러에도 throw하지 않으므로 ok 체크 필수
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || 'Post failed');
+        }
       } else {
-        await postComment(postId, input.trim());
+        await postComment(postId, commentContent);
       }
+      
+      // ✅ 위 과정에서 에러가 없어야만 아래 실행
       setInput('');
       loadComments();
       if (onCommentAdded) onCommentAdded(postId);
     } catch (err) {
-      alert(t('comment.postFail'));
+      console.error("댓글 작성 에러:", err);
+      alert(formatApiError(t, err) || t('comment.postFail'));
     } finally {
       setSubmitting(false);
     }
@@ -137,7 +147,7 @@ export default function CommentModal({
     setSavingId(commentId);
     try {
       if (type === 'snap') {
-        await fetch(getApiUrl(commentId), {
+        const res = await fetch(getApiUrl(commentId), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -145,6 +155,7 @@ export default function CommentModal({
           },
           body: JSON.stringify({ content: text })
         });
+        if (!res.ok) throw new Error('Update failed');
       } else {
         await updateCommentApi(postId, commentId, text);
       }
@@ -164,10 +175,11 @@ export default function CommentModal({
     if (!window.confirm(t('comment.confirmDel'))) return;
     try {
       if (type === 'snap') {
-        await fetch(getApiUrl(commentId), {
+        const res = await fetch(getApiUrl(commentId), {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (!res.ok) throw new Error('Delete failed');
       } else {
         await deleteCommentApi(postId, commentId);
       }
