@@ -5,3 +5,7 @@ pillow
 python-multipart
 pyyaml
 pandas
+sqlalchemy
+psycopg2-binary
+python-dotenv
+httpx

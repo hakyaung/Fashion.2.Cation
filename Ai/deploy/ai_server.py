@@ -2,20 +2,28 @@ import os
 import io
 import json
 import yaml
-from fastapi import FastAPI, File, UploadFile
+import torch
+from fastapi import FastAPI, File, UploadFile, Query
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from ultralytics import YOLO
+from typing import Optional
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ────────────────────────────────────────────────
+# 경로 설정
+# ────────────────────────────────────────────────
+BASE_DIR       = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH     = os.path.join(BASE_DIR, "fashion_yolo.pt")
+LABEL_MAP_PATH = os.path.join(BASE_DIR, "..", "research", "ai_dataset_large", "label_maps.json")
+YAML_PATH      = os.path.join(BASE_DIR, "..", "research", "ai_dataset_yolo", "dataset.yaml")
 
 # ────────────────────────────────────────────────
 # 1. API 서버 생성
 # ────────────────────────────────────────────────
-app = FastAPI(title="패션 YOLOv8 감지 AI")
-
-# ==========================================
-# 💡 1. API 서버 생성 (반드시 미들웨어 추가보다 먼저 와야 합니다!)
-# ==========================================
-app = FastAPI(title="패션 멀티태스크 감정 AI")
+app = FastAPI(title="Fashion.2.Cation AI 서버")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,27 +33,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. 하드웨어 & 환경 세팅 (Mac MPS 지원 추가)
-device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# ────────────────────────────────────────────────
+# 2. 하드웨어 & 모델 로딩
+# ────────────────────────────────────────────────
+device = (
+    "cuda" if torch.cuda.is_available()
+    else "mps" if torch.backends.mps.is_available()
+    else "cpu"
+)
+print(f"🖥️  디바이스: {device}")
+
+if not os.path.exists(MODEL_PATH):
+    raise FileNotFoundError(
+        f"❌ 모델 파일 없음: {MODEL_PATH}\n"
+        "   먼저 python Ai/research/train.py 를 실행하세요."
+    )
 
 print(f"🤖 YOLOv8 모델 로딩 중... ({MODEL_PATH})")
 model = YOLO(MODEL_PATH)
 print("✅ 모델 로드 완료!")
 
-# label_maps.json 에서 클래스 이름 읽기 (clean_metadata.py 가 생성)
+# ────────────────────────────────────────────────
+# 3. 클래스 이름 로딩
+# ────────────────────────────────────────────────
 if os.path.exists(LABEL_MAP_PATH):
     with open(LABEL_MAP_PATH, "r", encoding="utf-8") as f:
         label_maps = json.load(f)
-    class_map = label_maps.get("class_label", {})
+    class_map   = label_maps.get("class_label", {})
     class_names = [class_map[str(i)] for i in range(len(class_map))]
-    gender_map = label_maps.get("gender", {})
-    color_map  = label_maps.get("color", {})
-    style_map  = label_maps.get("style", {})
+    gender_map  = label_maps.get("gender", {})
+    color_map   = label_maps.get("color", {})
+    style_map   = label_maps.get("style", {})
 elif os.path.exists(YAML_PATH):
     with open(YAML_PATH, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
-    names_raw = cfg.get("names", {})
+    names_raw   = cfg.get("names", {})
     class_names = [names_raw[i] for i in sorted(names_raw.keys())] \
                   if isinstance(names_raw, dict) else list(names_raw)
     gender_map = color_map = style_map = {}
@@ -56,48 +78,98 @@ else:
 print(f"🏷️  클래스 {len(class_names)}개: {class_names}")
 
 # ────────────────────────────────────────────────
-# 3. 추론 엔드포인트
+# 4. DB 연결 (추천 엔드포인트용)
 # ────────────────────────────────────────────────
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/fashion2cation")
+try:
+    _engine  = create_engine(DATABASE_URL, pool_pre_ping=True)
+    _Session = sessionmaker(bind=_engine)
+    print(f"✅ DB 연결 성공")
+    DB_AVAILABLE = True
+except Exception as e:
+    print(f"⚠️  DB 연결 실패 (추천 기능 비활성화): {e}")
+    DB_AVAILABLE = False
+
+def get_db():
+    if not DB_AVAILABLE:
+        return None
+    db = _Session()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# ────────────────────────────────────────────────
+# 코디 조합 규칙
+# ────────────────────────────────────────────────
+OUTFIT_PAIRS = {
+    "상의":   ["하의", "아우터", "신발"],
+    "하의":   ["상의", "아우터", "신발"],
+    "아우터": ["상의", "하의", "신발"],
+    "원피스": ["아우터", "신발"],
+    "스커트": ["상의", "아우터", "신발"],
+    "신발":   ["상의", "하의", "원피스"],
+}
+
+def row_to_dict(row) -> dict:
+    return {
+        "id":           row.id,
+        "filename":     row.filename,
+        "brand":        row.brand,
+        "product_name": row.product_name,
+        "class_label":  row.class_label,
+        "gender":       row.gender,
+        "category":     row.category,
+        "color":        row.color,
+        "style":        row.style,
+        "price":        row.price,
+        "discount_rate":row.discount_rate,
+        "review_count": row.review_count,
+        "heart_count":  row.heart_count,
+        "image_url":    row.image_url,
+    }
+
+
+# ════════════════════════════════════════════════
+# 5. 추론 엔드포인트
+# ════════════════════════════════════════════════
 @app.post("/predict")
 async def predict_image(file: UploadFile = File(...)):
-    # 이미지 읽기
+    """YOLOv8 로 이미지를 분석해 카테고리·신뢰도·바운딩박스를 반환합니다."""
     image_bytes = await file.read()
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
-    # YOLOv8 추론
-    results = model.predict(source=image, imgsz=224, conf=0.25, verbose=False)
+    results = model.predict(source=image, imgsz=224, conf=0.25, verbose=False, device=device)
     result  = results[0]
 
-    # 감지된 객체가 없는 경우
     if len(result.boxes) == 0:
         return {
-            "status": "failed",
-            "message": "옷을 감지하지 못했습니다. 다른 사진을 사용해 주세요.",
+            "status":     "failed",
+            "message":    "옷을 감지하지 못했습니다. 다른 사진을 사용해 주세요.",
             "detections": []
         }
 
-    # 감지된 객체들 파싱 (신뢰도 순 정렬)
     detections = []
     for box in result.boxes:
         class_id   = int(box.cls.item())
         confidence = round(float(box.conf.item()) * 100, 2)
         x1, y1, x2, y2 = [round(v, 2) for v in box.xyxy[0].tolist()]
-
         detections.append({
             "category":   class_names[class_id] if class_id < len(class_names) else "unknown",
             "confidence": confidence,
-            "bbox": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
+            "bbox":       {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
         })
 
-    # 신뢰도 높은 순 정렬
     detections.sort(key=lambda d: d["confidence"], reverse=True)
     best = detections[0]
 
-    # 신뢰도 컷 (25% 미만은 불확실로 처리)
     if best["confidence"] < 25.0:
         return {
-            "status": "failed",
-            "message": f"신뢰도가 너무 낮습니다. ({best['confidence']}%)",
+            "status":     "failed",
+            "message":    f"신뢰도가 너무 낮습니다. ({best['confidence']}%)",
             "detections": detections
         }
 
@@ -109,9 +181,266 @@ async def predict_image(file: UploadFile = File(...)):
     }
 
 
+# ════════════════════════════════════════════════
+# 6. 추천 엔드포인트
+# ════════════════════════════════════════════════
+
+@app.post("/recommend/image")
+async def recommend_by_image(
+    file: UploadFile = File(...),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """
+    이미지를 업로드하면 YOLOv8로 카테고리를 감지하고
+    같은 class_label의 상품을 추천합니다.
+    """
+    if not DB_AVAILABLE:
+        return {"status": "failed", "message": "DB 연결 없음"}
+
+    # ① AI 분석
+    image_bytes = await file.read()
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    results = model.predict(source=image, imgsz=224, conf=0.25, verbose=False, device=device)
+    result  = results[0]
+
+    if len(result.boxes) == 0:
+        return {"status": "failed", "message": "옷을 감지하지 못했습니다.", "products": []}
+
+    detections = []
+    for box in result.boxes:
+        class_id   = int(box.cls.item())
+        confidence = round(float(box.conf.item()) * 100, 2)
+        detections.append({
+            "category":   class_names[class_id] if class_id < len(class_names) else "unknown",
+            "confidence": confidence,
+        })
+    detections.sort(key=lambda d: d["confidence"], reverse=True)
+    best = detections[0]
+
+    if best["confidence"] < 25.0:
+        return {"status": "failed", "message": f"신뢰도 낮음 ({best['confidence']}%)", "products": []}
+
+    detected_class = best["category"]
+
+    # ② DB에서 같은 class_label 상품 조회
+    with _Session() as db:
+        rows = db.execute(
+            text("""
+                SELECT * FROM products
+                WHERE class_label = :cls
+                ORDER BY RANDOM()
+                LIMIT :lim
+            """),
+            {"cls": detected_class, "lim": limit}
+        ).fetchall()
+
+    return {
+        "status":         "success",
+        "detected_class": detected_class,
+        "confidence":     best["confidence"],
+        "products":       [dict(r._mapping) for r in rows],
+    }
+
+
+@app.get("/recommend/popular")
+def recommend_popular(
+    category: Optional[str] = Query(None, description="상의/하의/아우터/원피스/스커트/신발"),
+    gender:   Optional[str] = Query(None, description="남성/여성/공용"),
+    limit:    int           = Query(20, ge=1, le=100),
+):
+    """
+    heart_count × 2 + review_count 기준 인기 상품을 추천합니다.
+    category, gender 로 필터링 가능합니다.
+    """
+    if not DB_AVAILABLE:
+        return {"status": "failed", "message": "DB 연결 없음"}
+
+    conditions = []
+    params: dict = {"lim": limit}
+
+    if category:
+        conditions.append("category = :category")
+        params["category"] = category
+    if gender:
+        conditions.append("(gender = :gender OR gender = '공용')")
+        params["gender"] = gender
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    with _Session() as db:
+        rows = db.execute(
+            text(f"""
+                SELECT *,
+                       COALESCE(heart_count, 0) * 2 + COALESCE(review_count, 0) AS score
+                FROM products
+                {where}
+                ORDER BY score DESC
+                LIMIT :lim
+            """),
+            params
+        ).fetchall()
+
+    return {
+        "status":   "success",
+        "source":   "popular",
+        "products": [dict(r._mapping) for r in rows],
+    }
+
+
+@app.get("/recommend/outfit")
+def recommend_outfit(
+    category: str           = Query(..., description="기준 카테고리 (상의/하의/아우터/원피스/스커트/신발)"),
+    gender:   Optional[str] = Query(None),
+    style:    Optional[str] = Query(None),
+    limit:    int           = Query(10, ge=1, le=50),
+):
+    """
+    선택한 카테고리에 어울리는 카테고리 상품들을 함께 추천합니다.
+    예) 상의 → 하의 + 아우터 + 신발
+    """
+    if not DB_AVAILABLE:
+        return {"status": "failed", "message": "DB 연결 없음"}
+
+    paired = OUTFIT_PAIRS.get(category)
+    if not paired:
+        return {
+            "status":  "failed",
+            "message": f"'{category}' 카테고리에 대한 코디 규칙이 없습니다.",
+        }
+
+    outfit: dict = {}
+    with _Session() as db:
+        for cat in paired:
+            conditions = ["category = :category"]
+            params: dict = {"category": cat, "lim": limit}
+
+            if gender:
+                conditions.append("(gender = :gender OR gender = '공용')")
+                params["gender"] = gender
+            if style:
+                conditions.append("style = :style")
+                params["style"] = style
+
+            where = "WHERE " + " AND ".join(conditions)
+            rows = db.execute(
+                text(f"""
+                    SELECT * FROM products
+                    {where}
+                    ORDER BY COALESCE(heart_count, 0) DESC, RANDOM()
+                    LIMIT :lim
+                """),
+                params
+            ).fetchall()
+
+            if rows:
+                outfit[cat] = [dict(r._mapping) for r in rows]
+
+    return {
+        "status":        "success",
+        "base_category": category,
+        "paired_with":   paired,
+        "outfit":        outfit,
+    }
+
+
+@app.get("/recommend/preference")
+def recommend_by_preference(
+    user_id:    str           = Query(..., description="유저 UUID"),
+    limit:      int           = Query(20, ge=1, le=100),
+):
+    """
+    user_preferences 테이블의 유저 설정값 기반으로 상품을 추천합니다.
+    선호도 미설정 시 인기 추천으로 대체됩니다.
+    """
+    if not DB_AVAILABLE:
+        return {"status": "failed", "message": "DB 연결 없음"}
+
+    with _Session() as db:
+        # 선호도 조회
+        pref = db.execute(
+            text("SELECT * FROM user_preferences WHERE user_id = :uid"),
+            {"uid": user_id}
+        ).fetchone()
+
+        if not pref:
+            # fallback: 인기 추천
+            rows = db.execute(
+                text("""
+                    SELECT * FROM products
+                    ORDER BY COALESCE(heart_count,0)*2 + COALESCE(review_count,0) DESC
+                    LIMIT :lim
+                """),
+                {"lim": limit}
+            ).fetchall()
+            return {
+                "status":   "success",
+                "source":   "popular_fallback",
+                "products": [dict(r._mapping) for r in rows],
+            }
+
+        # 선호도 기반 필터링
+        conditions = []
+        params: dict = {"lim": limit}
+
+        if pref.preferred_gender:
+            conditions.append("(gender = :gender OR gender = '공용')")
+            params["gender"] = pref.preferred_gender
+
+        if pref.preferred_categories:
+            cats = [c.strip() for c in pref.preferred_categories.split(",") if c.strip()]
+            if cats:
+                placeholders = ", ".join([f":cat{i}" for i in range(len(cats))])
+                conditions.append(f"category IN ({placeholders})")
+                for i, c in enumerate(cats):
+                    params[f"cat{i}"] = c
+
+        if pref.preferred_styles:
+            styles = [s.strip() for s in pref.preferred_styles.split(",") if s.strip()]
+            if styles:
+                placeholders = ", ".join([f":style{i}" for i in range(len(styles))])
+                conditions.append(f"style IN ({placeholders})")
+                for i, s in enumerate(styles):
+                    params[f"style{i}"] = s
+
+        if pref.preferred_colors:
+            colors = [c.strip() for c in pref.preferred_colors.split(",") if c.strip()]
+            if colors:
+                placeholders = ", ".join([f":color{i}" for i in range(len(colors))])
+                conditions.append(f"color IN ({placeholders})")
+                for i, c in enumerate(colors):
+                    params[f"color{i}"] = c
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        rows = db.execute(
+            text(f"""
+                SELECT * FROM products
+                {where}
+                ORDER BY COALESCE(heart_count,0) DESC, RANDOM()
+                LIMIT :lim
+            """),
+            params
+        ).fetchall()
+
+    return {
+        "status":   "success",
+        "source":   "preference",
+        "products": [dict(r._mapping) for r in rows],
+    }
+
+
+# ════════════════════════════════════════════════
+# 7. 헬스체크
+# ════════════════════════════════════════════════
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "model": "YOLOv8", "classes": len(class_names)}
+    return {
+        "status":       "ok",
+        "model":        "YOLOv8",
+        "device":       device,
+        "classes":      len(class_names),
+        "class_names":  class_names,
+        "db":           "connected" if DB_AVAILABLE else "disconnected",
+    }
 
 
 # ────────────────────────────────────────────────
