@@ -57,17 +57,17 @@ export default function CommunityPage() {
   // ==========================================
   const [postModalOpen, setPostModalOpen] = useState(false);
   
-  // 💡 commentModal 상태에 type(post/snap) 추가
+  // 💡 commentModal 상태 (type으로 post/snap 구분)
   const [commentModal, setCommentModal] = useState({
     open: false,
     postId: null,
     postOwnerId: null, 
-    type: 'post', // 기본값은 post
+    type: 'post',
     onAdded: null,
     onRemoved: null,  
   });
   
-  // 💡 [수정됨] EditModal 상태에도 type을 추가합니다!
+  // 💡 EditModal 상태 (type으로 post/snap 구분)
   const [editModal, setEditModal] = useState({ open: false, post: null, type: 'post' });
 
   const [feedKey, setFeedKey] = useState(0);
@@ -158,12 +158,10 @@ export default function CommunityPage() {
     setFeedKey((k) => k + 1);
   }, []);
 
-  // 💡 handleCommentOpen이 type을 인자로 받도록 수정
   const handleCommentOpen = useCallback((postId, postOwnerId, type = 'post', onAdded, onRemoved) => {
     setCommentModal({ open: true, postId, postOwnerId, type, onAdded, onRemoved });
   }, []);
 
-  // 💡 [수정됨] handleEditOpen이 type을 인자로 받도록 수정
   const handleEditOpen = useCallback((post, type = 'post') => {
     setEditModal({ open: true, post, type });
   }, []);
@@ -172,12 +170,21 @@ export default function CommunityPage() {
     setFeedKey((k) => k + 1);
   }, []);
 
+  // 💡 [수정됨] 스냅 삭제 시 AWS/로컬 환경 자동 감지 로직 적용
   const handleDeleteSnap = useCallback(async (snapId) => {
     const token = localStorage.getItem('stylescape_token');
     if (!token) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/posts/snaps/${snapId}`, {
+      const currentProtocol = window.location.protocol;
+      const currentHost = window.location.hostname;
+      
+      // HTTPS(AWS)면 443 포트, HTTP(로컬)면 8000 포트
+      const API_BASE = currentProtocol === 'https:'
+        ? `https://${currentHost}`
+        : `http://${currentHost}:8000`;
+
+      const response = await fetch(`${API_BASE}/api/v1/posts/snaps/${snapId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -218,8 +225,11 @@ export default function CommunityPage() {
               searchKeyword={debouncedKeyword}
               userGeo={userGeo}
               onTagSearch={handleTagSearch}
-              onCommentOpen={handleCommentOpen}
-              onEditOpen={handleEditOpen}
+              // 일반 피드이므로 type='post'를 명시적으로 전달
+              onCommentOpen={(postId, postUserId, onAdded, onRemoved) =>
+                handleCommentOpen(postId, postUserId, 'post', onAdded, onRemoved)
+              }
+              onEditOpen={(post) => handleEditOpen(post, 'post')}
               onProfileClick={handleProfileClick} 
               onFeedSort={handleSort} 
               isActive={activeView === 'home'}
@@ -252,7 +262,6 @@ export default function CommunityPage() {
               key={`snap-${feedKey}`}
               onProfileClick={handleProfileClick}
               onCommentOpen={(id, ownerId) => handleCommentOpen(id, ownerId, 'snap')} 
-              // 💡 [수정됨] 스냅을 수정할 때 'snap' 꼬리표를 확실하게 달아줍니다!
               onEditOpen={(snap) => handleEditOpen(snap, 'snap')}
               onDeleteSnap={handleDeleteSnap}
             />
@@ -291,7 +300,6 @@ export default function CommunityPage() {
         onPosted={handlePosted}
       />
 
-      {/* 💡 type 프롭을 CommentModal에 전달 */}
       <CommentModal
         isOpen={commentModal.open}
         postId={commentModal.postId}
@@ -311,7 +319,6 @@ export default function CommunityPage() {
         onCommentRemoved={commentModal.onRemoved}
       />
 
-      {/* 💡 [수정됨] type 프롭을 EditModal에 전달하여 API 주소를 구분하게 합니다. */}
       <EditModal
         post={editModal.open ? editModal.post : null}
         type={editModal.type} 
