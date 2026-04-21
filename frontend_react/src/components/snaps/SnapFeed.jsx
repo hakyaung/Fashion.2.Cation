@@ -13,10 +13,14 @@ export default function SnapFeed({ onProfileClick, onCommentOpen, onEditOpen, on
         const token = localStorage.getItem('stylescape_token');
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
         
-        // 💡 [핵심] 현재 브라우저의 접속 주소를 감지하여 백엔드 주소를 자동 완성합니다!
-        // 내 컴퓨터면 'localhost', AWS 서버면 '13.x.x.x' 등 접속 IP를 스스로 알아냅니다.
+        // 💡 [핵심 수정] HTTP(로컬)와 HTTPS(AWS) 환경을 모두 지원하는 동적 라우팅!
+        const currentProtocol = window.location.protocol; // 'http:' 또는 'https:'
         const currentHost = window.location.hostname;
-        const API_URL = `http://${currentHost}:8000/api/v1/posts/snaps`;
+        
+        // HTTPS 환경에서는 포트(8000)를 빼고 리버스 프록시(443 포트)로 요청합니다.
+        const API_URL = currentProtocol === 'https:'
+          ? `https://${currentHost}/api/v1/posts/snaps`
+          : `http://${currentHost}:8000/api/v1/posts/snaps`;
         
         const response = await fetch(API_URL, { headers }); 
         
