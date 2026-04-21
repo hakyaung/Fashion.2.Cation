@@ -15,10 +15,16 @@ load_dotenv()
 # ────────────────────────────────────────────────
 # 경로 설정
 # ────────────────────────────────────────────────
-BASE_DIR       = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH     = os.path.join(BASE_DIR, "fashion_yolo.pt")
-LABEL_MAP_PATH = os.path.join(BASE_DIR, "..", "research", "ai_dataset_large", "label_maps.json")
-YAML_PATH      = os.path.join(BASE_DIR, "..", "research", "ai_dataset_yolo", "dataset.yaml")
+BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "fashion_yolo.pt")
+YAML_PATH  = os.path.join(BASE_DIR, "..", "research", "ai_dataset_yolo", "dataset.yaml")
+
+# label_maps.json: Docker 환경(같은 폴더) → 로컬 환경(research 폴더) 순으로 탐색
+_label_map_candidates = [
+    os.path.join(BASE_DIR, "label_maps.json"),                                          # Docker
+    os.path.join(BASE_DIR, "..", "research", "ai_dataset_large", "label_maps.json"),    # 로컬
+]
+LABEL_MAP_PATH = next((p for p in _label_map_candidates if os.path.exists(p)), None)
 
 # ────────────────────────────────────────────────
 # 1. API 서버 생성
@@ -56,7 +62,7 @@ print("✅ 모델 로드 완료!")
 # ────────────────────────────────────────────────
 # 3. 클래스 이름 로딩
 # ────────────────────────────────────────────────
-if os.path.exists(LABEL_MAP_PATH):
+if LABEL_MAP_PATH and os.path.exists(LABEL_MAP_PATH):
     with open(LABEL_MAP_PATH, "r", encoding="utf-8") as f:
         label_maps = json.load(f)
     class_map   = label_maps.get("class_label", {})

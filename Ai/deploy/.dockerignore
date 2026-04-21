@@ -1,5 +1,14 @@
-# 도커에 안 넣어도 되는 무거운 폴더/파일들
+# 가상환경 & 캐시
 venv/
 __pycache__/
 *.pyc
 .DS_Store
+
+# 학습 결과물 (모델 파일만 선택적으로 COPY)
+research/runs/
+research/ai_dataset_yolo/
+research/ai_dataset_large/images/
+research/ai_dataset_large/processed_images/
+
+# 개발용 스크립트 (서버에 불필요)
+research/*.py

@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  ai-server:
+    build:
+      context: .                    # Ai/ 폴더 기준
+      dockerfile: deploy/Dockerfile
+    image: f2c-ai:latest
+    container_name: f2c-ai-server
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
