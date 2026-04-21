@@ -1,3 +1,4 @@
+// frontend_react/src/components/layout/Mobilenav.jsx
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -30,10 +31,11 @@ export default function MobileNav({ onNavigate, onSort, onNearby, onOpenPost }) 
         {t('mobileNav.post')}
       </button>
 
-      {/* 5. 주변 */}
-      <button type="button" onClick={onNearby}>
-        <span>⚑</span>
-        {t('mobileNav.nearby')}
+      {/* 🎬 5. 스냅 (기존 '주변' 버튼 대체) */}
+      <button type="button" onClick={() => onNavigate('snap')}>
+        <span>🎬</span>
+        {/* 다국어 사전에 'mobileNav.snap'이 없더라도 '스냅'으로 출력되도록 폴백 설정 */}
+        {t('mobileNav.snap', '스냅')}
       </button>
 
       {/* 6. 프로필(나) */}
