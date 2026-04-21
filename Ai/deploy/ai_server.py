@@ -1,13 +1,16 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torchvision.models as models
-from torchvision import transforms
-from PIL import Image
 import os
 import io
+import json
+import yaml
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image
+from ultralytics import YOLO
+
+# ────────────────────────────────────────────────
+# 1. API 서버 생성
+# ────────────────────────────────────────────────
+app = FastAPI(title="패션 YOLOv8 감지 AI")
 
 # ==========================================
 # 💡 1. API 서버 생성 (반드시 미들웨어 추가보다 먼저 와야 합니다!)
@@ -16,7 +19,7 @@ app = FastAPI(title="패션 멀티태스크 감정 AI")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # 실무에선 특정 주소만 허용하지만, 개발 중엔 "*"로 열어둬
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -26,93 +29,94 @@ app.add_middleware(
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# ==========================================
-# 🌟 3. 머리 3개 달린 멀티태스크 모델 구조 정의
-# ==========================================
-class FashionMultiTaskModel(nn.Module):
-    def __init__(self, num_categories, num_colors, num_styles):
-        super(FashionMultiTaskModel, self).__init__()
-        self.backbone = models.resnet18()
-        num_features = self.backbone.fc.in_features
-        self.backbone.fc = nn.Identity() 
+print(f"🤖 YOLOv8 모델 로딩 중... ({MODEL_PATH})")
+model = YOLO(MODEL_PATH)
+print("✅ 모델 로드 완료!")
 
-        self.category_head = nn.Linear(num_features, num_categories)
-        self.color_head = nn.Linear(num_features, num_colors)
-        self.style_head = nn.Linear(num_features, num_styles)
+# label_maps.json 에서 클래스 이름 읽기 (clean_metadata.py 가 생성)
+if os.path.exists(LABEL_MAP_PATH):
+    with open(LABEL_MAP_PATH, "r", encoding="utf-8") as f:
+        label_maps = json.load(f)
+    class_map = label_maps.get("class_label", {})
+    class_names = [class_map[str(i)] for i in range(len(class_map))]
+    gender_map = label_maps.get("gender", {})
+    color_map  = label_maps.get("color", {})
+    style_map  = label_maps.get("style", {})
+elif os.path.exists(YAML_PATH):
+    with open(YAML_PATH, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    names_raw = cfg.get("names", {})
+    class_names = [names_raw[i] for i in sorted(names_raw.keys())] \
+                  if isinstance(names_raw, dict) else list(names_raw)
+    gender_map = color_map = style_map = {}
+else:
+    class_names = list(model.names.values())
+    gender_map = color_map = style_map = {}
 
-    def forward(self, x):
-        features = self.backbone(x)
-        return self.category_head(features), self.color_head(features), self.style_head(features)
+print(f"🏷️  클래스 {len(class_names)}개: {class_names}")
 
-# ==========================================
-# 🌟 4. 모델을 '서버 켜질 때 딱 한 번만' 불러오기
-# ==========================================
-# 훈련 로그 기준: 카테고리 7개, 색상 10개, 스타일 6개
-model = FashionMultiTaskModel(7, 10, 6)
-# 👉 우리가 방금 만든 '새로운 모델' 파일명으로 변경!
-MODEL_PATH = os.path.join(BASE_DIR, "fashion_multitask_model.pth") 
-
-# 서버(EC2)가 CPU만 있을 수도 있으니 map_location 추가
-model.load_state_dict(torch.load(MODEL_PATH, map_location=device, weights_only=True))
-model = model.to(device)
-model.eval()
-
-# ==========================================
-# 5. 이미지 변환기 및 정답지 (CSV 대신 딕셔너리로 가볍게!)
-# ==========================================
-val_transform = transforms.Compose([
-    transforms.Resize(256),
-    transforms.CenterCrop(224), 
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
-
-category_map = {0: "가방", 1: "모자", 2: "바지", 3: "상의", 4: "스커트", 5: "신발", 6: "아우터"}
-color_map = {0: "black", 1: "blue", 2: "brown", 3: "gray", 4: "green", 5: "navy", 6: "pink", 7: "red", 8: "white", 9: "yellow"}
-style_map = {0: "casual", 1: "formal", 2: "minimalist", 3: "sportswear", 4: "streetwear", 5: "vintage"}
-
-# ==========================================
-# 6. 🚀 사진을 받는 API 창구 (Endpoint)
-# ==========================================
+# ────────────────────────────────────────────────
+# 3. 추론 엔드포인트
+# ────────────────────────────────────────────────
 @app.post("/predict")
 async def predict_image(file: UploadFile = File(...)):
-    # 1. 들어온 사진 파일 읽기
+    # 이미지 읽기
     image_bytes = await file.read()
-    image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-    
-    # 2. AI가 먹기 좋게 변환
-    image_tensor = val_transform(image).unsqueeze(0).to(device)
-    
-    # 3. AI 감정 시작!
-    with torch.no_grad():
-        out_cat, out_color, out_style = model(image_tensor)
-        
-        # 카테고리 신뢰도(확률) 계산
-        probabilities = F.softmax(out_cat, dim=1)
-        confidence, pred_cat = torch.max(probabilities, 1)
-        conf_score = round(confidence.item() * 100, 2)
-        
-        # 색상, 스타일 예측
-        _, pred_color = torch.max(out_color, 1)
-        _, pred_style = torch.max(out_style, 1)
-        
-    # 🚨 4. 신뢰도 70% 미만 방어막 컷!
-    if conf_score < 70.0:
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+    # YOLOv8 추론
+    results = model.predict(source=image, imgsz=224, conf=0.25, verbose=False)
+    result  = results[0]
+
+    # 감지된 객체가 없는 경우
+    if len(result.boxes) == 0:
         return {
             "status": "failed",
-            "message": f"옷이 아니거나 사진이 너무 흐립니다. (신뢰도: {conf_score}%)"
+            "message": "옷을 감지하지 못했습니다. 다른 사진을 사용해 주세요.",
+            "detections": []
         }
-    
-    # 5. 백엔드가 읽기 편한 JSON 형태로 3가지 결과 쏴주기
+
+    # 감지된 객체들 파싱 (신뢰도 순 정렬)
+    detections = []
+    for box in result.boxes:
+        class_id   = int(box.cls.item())
+        confidence = round(float(box.conf.item()) * 100, 2)
+        x1, y1, x2, y2 = [round(v, 2) for v in box.xyxy[0].tolist()]
+
+        detections.append({
+            "category":   class_names[class_id] if class_id < len(class_names) else "unknown",
+            "confidence": confidence,
+            "bbox": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
+        })
+
+    # 신뢰도 높은 순 정렬
+    detections.sort(key=lambda d: d["confidence"], reverse=True)
+    best = detections[0]
+
+    # 신뢰도 컷 (25% 미만은 불확실로 처리)
+    if best["confidence"] < 25.0:
+        return {
+            "status": "failed",
+            "message": f"신뢰도가 너무 낮습니다. ({best['confidence']}%)",
+            "detections": detections
+        }
+
     return {
-        "status": "success",
-        "category": category_map.get(pred_cat.item(), "unknown"),
-        "color": color_map.get(pred_color.item(), "unknown"),
-        "style": style_map.get(pred_style.item(), "unknown"),
-        "confidence": conf_score
+        "status":     "success",
+        "category":   best["category"],
+        "confidence": best["confidence"],
+        "detections": detections,
     }
 
-# 서버 실행용 시동 버튼 코드
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "model": "YOLOv8", "classes": len(class_names)}
+
+
+# ────────────────────────────────────────────────
+# 서버 실행
+# ────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("ai_server:app", host="0.0.0.0", port=8001, reload=True)

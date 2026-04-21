@@ -1,7 +1,7 @@
 fastapi
 uvicorn
-torch
-torchvision
+ultralytics
 pillow
 python-multipart
+pyyaml
 pandas

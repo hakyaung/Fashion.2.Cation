@@ -4,7 +4,16 @@ from PIL import Image
 import torch
 from transformers import pipeline
 
-# 1. 하드웨어 설정 (Mac MPS 지원)
+# ────────────────────────────────────────────────
+# 1. 경로 설정
+# ────────────────────────────────────────────────
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+IMG_DIR  = os.path.join(BASE_DIR, "ai_dataset_large", "images")
+CSV_PATH = os.path.join(BASE_DIR, "ai_dataset_large", "metadata.csv")
+
+# ────────────────────────────────────────────────
+# 2. 하드웨어 설정 (Mac MPS / CUDA / CPU)
+# ────────────────────────────────────────────────
 if torch.backends.mps.is_available():
     device = torch.device("mps")
 elif torch.cuda.is_available():
@@ -12,67 +21,111 @@ elif torch.cuda.is_available():
 else:
     device = torch.device("cpu")
 
-print(f"🔥 AI 비서가 일할 환경: {device}")
-print("🤖 CLIP 비서를 불러오는 중... (처음엔 모델 다운로드로 몇 분 걸릴 수 있습니다)")
+print(f"🔥 실행 환경: {device}")
+print("🤖 CLIP 모델 로딩 중... (처음엔 다운로드로 몇 분 걸릴 수 있어요)")
 
-# 2. 제로샷 이미지 분류기 (CLIP) 소환!
-# 후보 단어들 중에서 사진과 가장 잘 어울리는 단어를 골라주는 모델입니다.
-classifier = pipeline("zero-shot-image-classification", model="openai/clip-vit-base-patch32", device=device)
+# ────────────────────────────────────────────────
+# 3. CLIP 제로샷 분류기
+# ────────────────────────────────────────────────
+classifier = pipeline(
+    "zero-shot-image-classification",
+    model="openai/clip-vit-base-patch32",
+    device=device
+)
 
-# 3. 모델에게 물어볼 '선택지(후보)'를 미리 정해줍니다.
-# 영어가 인식이 훨씬 잘 되므로 영어로 세팅합니다.
-color_candidates = ["black", "white", "red", "blue", "green", "yellow", "gray", "brown", "pink", "navy"]
-style_candidates = ["streetwear", "casual", "formal", "sportswear", "minimalist", "vintage"]
+# 라벨 후보
+color_candidates = [
+    "black", "white", "gray", "navy", "blue",
+    "red", "pink", "green", "yellow", "brown", "beige", "purple"
+]
+style_candidates = [
+    "casual", "formal", "streetwear", "sportswear",
+    "minimalist", "vintage", "preppy", "bohemian"
+]
 
-# 4. 기존 데이터셋 불러오기
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-OLD_CSV = os.path.join(BASE_DIR, "ai_dataset_large", "final_training_data.csv")
-NEW_CSV = os.path.join(BASE_DIR, "ai_dataset_large", "final_multitask_data.csv")
-IMG_DIR = os.path.join(BASE_DIR, "ai_dataset_large", "processed_images")
+# ────────────────────────────────────────────────
+# 4. 데이터셋 로드
+# ────────────────────────────────────────────────
+df = pd.read_csv(CSV_PATH)
 
-df = pd.read_csv(OLD_CSV)
+# 이미 라벨링된 행은 건너뜀 (재실행 시 이어서 처리)
+if "color" not in df.columns:
+    df["color"] = None
+if "color_score" not in df.columns:
+    df["color_score"] = None
+if "style" not in df.columns:
+    df["style"] = None
+if "style_score" not in df.columns:
+    df["style_score"] = None
 
-# 새로운 결과를 담을 리스트
-colors = []
-styles = []
+# color와 style 둘 다 없는 행만 처리
+todo = df[df["color"].isna() | df["style"].isna()].index.tolist()
+total = len(todo)
+print(f"📊 총 {len(df)}장 중 라벨링 필요: {total}장")
+if total == 0:
+    print("✅ 이미 모두 라벨링 완료!")
+    exit()
 
-print(f"📊 총 {len(df)}장의 사진을 분석합니다. 커피 한잔하고 오세요! ☕️")
-print("========================================")
+print("=" * 50)
 
-# 5. 사진을 한 장씩 보면서 AI 비서에게 질문하기
-for index, row in df.iterrows():
-    img_name = row['filename']
+# ────────────────────────────────────────────────
+# 5. 이미지별 color + style 라벨링
+# ────────────────────────────────────────────────
+SAVE_EVERY = 50  # 50장마다 중간 저장
+
+for count, idx in enumerate(todo, start=1):
+    img_name = df.at[idx, "filename"]
     img_path = os.path.join(IMG_DIR, img_name)
-    
+
     try:
-        # 사진 열기
-        image = Image.open(img_path).convert('RGB')
-        
-        # 비서야, 이 사진 무슨 색이 제일 유력해?
+        image = Image.open(img_path).convert("RGB")
+
+        # 색상 분류
         color_result = classifier(image, candidate_labels=color_candidates)
-        best_color = color_result[0]['label'] # 가장 확률이 높은 첫 번째 정답
-        
-        # 비서야, 이 사진은 어떤 스타일에 가까워?
+        best_color = color_result[0]
+        df.at[idx, "color"]       = best_color["label"]
+        df.at[idx, "color_score"] = round(best_color["score"], 4)
+
+        # 스타일 분류
         style_result = classifier(image, candidate_labels=style_candidates)
-        best_style = style_result[0]['label']
-        
-        colors.append(best_color)
-        styles.append(best_style)
-        
-        # 진행 상황 출력 (10장마다)
-        if (index + 1) % 10 == 0:
-            print(f"[{index + 1}/{len(df)}] 📸 {img_name} -> 색상: {best_color}, 스타일: {best_style}")
-            
+        best_style = style_result[0]
+        df.at[idx, "style"]       = best_style["label"]
+        df.at[idx, "style_score"] = round(best_style["score"], 4)
+
+    except FileNotFoundError:
+        print(f"  ⚠️  파일 없음: {img_name}")
+        df.at[idx, "color"] = "unknown"
+        df.at[idx, "color_score"] = 0.0
+        df.at[idx, "style"] = "unknown"
+        df.at[idx, "style_score"] = 0.0
     except Exception as e:
-        print(f"🚨 {img_name} 처리 중 에러 발생: {e}")
-        # 에러 나면 임시로 unknown 처리
-        colors.append("unknown")
-        styles.append("unknown")
+        print(f"  🚨 에러 ({img_name}): {e}")
+        df.at[idx, "color"] = "unknown"
+        df.at[idx, "color_score"] = 0.0
+        df.at[idx, "style"] = "unknown"
+        df.at[idx, "style_score"] = 0.0
 
-# 6. 원래 표에 새로운 컬럼 추가하고 저장하기!
-df['color'] = colors
-df['style'] = styles
+    # 진행 상황 출력 (10장마다)
+    if count % 10 == 0 or count == total:
+        c = df.at[idx, "color"]
+        s = df.at[idx, "style"]
+        print(f"  [{count}/{total}] {img_name}  →  색상: {c} / 스타일: {s}")
 
-df.to_csv(NEW_CSV, index=False)
-print("========================================")
-print(f"🎉 완벽합니다! 3개의 정답을 가진 새로운 데이터셋이 저장되었습니다: {NEW_CSV}")
+    # 중간 저장 (50장마다)
+    if count % SAVE_EVERY == 0:
+        df.to_csv(CSV_PATH, index=False)
+        print(f"  💾 중간 저장 완료 ({count}장)")
+
+# ────────────────────────────────────────────────
+# 6. 최종 저장
+# ────────────────────────────────────────────────
+df.to_csv(CSV_PATH, index=False)
+print("=" * 50)
+print(f"🎉 라벨링 완료! metadata.csv에 color / style 컬럼이 추가되었습니다.")
+print(f"   저장 위치: {CSV_PATH}")
+print()
+print("📈 색상 분포:")
+print(df["color"].value_counts().to_string())
+print()
+print("📈 스타일 분포:")
+print(df["style"].value_counts().to_string())

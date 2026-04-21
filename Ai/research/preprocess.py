@@ -47,6 +47,6 @@ for filename in os.listdir(source_dir):
                 print(f"  -> ⏳ {count}장 처리 완료...")
                 
         except Exception as e:
-            print(f"❌ {filename} 처리 실패: {e}")
+            print(f"❌ {filename} 처리 실패 (건너뜀): {e}")
 
 print(f"\n✅ 총 {count}장 정형화 완료! '{os.path.abspath(target_dir)}' 폴더를 확인해 봐.")
