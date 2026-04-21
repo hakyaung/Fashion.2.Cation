@@ -22,6 +22,13 @@ export default function SnapUpload({ onUploadComplete }) {
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
+  // 💡 [핵심] 현재 접속한 브라우저 환경(HTTP/HTTPS, 도메인/IP)을 감지하여 기본 주소를 만듭니다.
+  const currentProtocol = window.location.protocol;
+  const currentHost = window.location.hostname;
+  const API_BASE_URL = currentProtocol === 'https:'
+    ? `https://${currentHost}`
+    : `http://${currentHost}:8000`;
+
   // 💡 실시간 지역 검색 로직
   useEffect(() => {
     const searchLocation = async () => {
@@ -32,7 +39,8 @@ export default function SnapUpload({ onUploadComplete }) {
 
       try {
         setIsSearching(true);
-        const response = await fetch(`http://localhost:8000/api/v1/locations/search?q=${encodeURIComponent(locationSearch)}`);
+        // 💡 하드코딩된 localhost 대신 API_BASE_URL 적용!
+        const response = await fetch(`${API_BASE_URL}/api/v1/locations/search?q=${encodeURIComponent(locationSearch)}`);
         if (response.ok) {
           const data = await response.json();
           setLocationResults(data);
@@ -46,7 +54,7 @@ export default function SnapUpload({ onUploadComplete }) {
 
     const timer = setTimeout(searchLocation, 400); // 디바운싱
     return () => clearTimeout(timer);
-  }, [locationSearch, selectedLocation]);
+  }, [locationSearch, selectedLocation, API_BASE_URL]);
 
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
@@ -88,7 +96,9 @@ export default function SnapUpload({ onUploadComplete }) {
 
           // 2. 백엔드 DB 저장
           const token = localStorage.getItem('stylescape_token');
-          const response = await fetch('http://localhost:8000/api/v1/posts/snaps', {
+          
+          // 💡 하드코딩된 localhost 대신 API_BASE_URL 적용!
+          const response = await fetch(`${API_BASE_URL}/api/v1/posts/snaps`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
