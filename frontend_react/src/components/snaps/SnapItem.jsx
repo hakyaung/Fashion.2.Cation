@@ -151,62 +151,65 @@ export default function SnapItem({ snap, onProfileClick, onCommentOpen, onEditOp
       <div className="reels-overlay-bottom" />
 
       {/* 3. 좌측 하단 정보 섹션 (유저 정보, 본문, 태그) */}
-      <div className="reels-info-section">
+      {/* 💡 강제 끌어올리기: bottom을 80px로 올려 하단바에 안 씹히게 고정 */}
+      <div className="reels-info-section" style={{ bottom: '80px' }}>
         <div className="reels-user-row" onClick={() => onProfileClick && onProfileClick(snap.user_id)}>
           <img 
             src={snap.author_profile_image || "data:image/svg+xml,%3Csvg..."} 
             alt="profile" 
             onError={handleImageError}
             className="reels-avatar"
+            style={{ width: '32px', height: '32px' }} /* 프사 크기도 살짝 조절 */
           />
-          <span className="reels-username">{snap.author || "사용자"}</span>
-          <button className="reels-follow-btn">팔로우</button>
+          <span className="reels-username" style={{ fontSize: '14px' }}>{snap.author || "사용자"}</span>
+          <button className="reels-follow-btn" style={{ padding: '2px 8px', fontSize: '11px' }}>팔로우</button>
         </div>
         
         <div className="reels-content-box">
-          <p className="reels-text">
+          <p className="reels-text" style={{ fontSize: '13px' }}>
             {snap.content}
-            <span className="reels-translate-link" onClick={(e) => { e.stopPropagation(); /* 번역 로직 연동 가능 */ }}>번역 보기</span>
+            <span className="reels-translate-link" onClick={(e) => { e.stopPropagation(); /* 번역 로직 연동 가능 */ }} style={{ fontSize: '11px' }}>번역 보기</span>
           </p>
         </div>
 
         <div className="reels-tags-row">
           {snap.tags?.map((tag, idx) => (
-            <span key={idx} className="reels-tag-item">#{tag.tag_name || tag}</span>
+            <span key={idx} className="reels-tag-item" style={{ fontSize: '12px' }}>#{tag.tag_name || tag}</span>
           ))}
         </div>
         
-        <div className="reels-location-tag">
+        <div className="reels-location-tag" style={{ fontSize: '11px' }}>
           📍 {snap.location_name || "위치 정보 없음"}
         </div>
       </div>
 
       {/* 4. 우측 세로 액션 버튼 섹션 */}
-      <div className="reels-actions-column">
+      {/* 💡 강제 끌어올리기 & 크기 줄이기: bottom 90px, 아이콘 크기와 간격을 틱톡처럼 슬림하게 조정 */}
+      <div className="reels-actions-column" style={{ bottom: '90px', gap: '14px' }}>
         <div className="reels-action-btn" onClick={handleLike}>
-          <div className={`reels-icon-circle ${isLiked ? 'liked' : ''}`}>
+          <div className={`reels-icon-circle ${isLiked ? 'liked' : ''}`} style={{ fontSize: '24px' }}>
             {isLiked ? '❤️' : '🤍'}
           </div>
-          <span className="reels-action-count">{likeCount}</span>
+          <span className="reels-action-count" style={{ fontSize: '11px' }}>{likeCount}</span>
         </div>
 
         <div className="reels-action-btn" onClick={handleCommentClick}>
-          <div className="reels-icon-circle">💬</div>
-          <span className="reels-action-count">{snap.comment_count || 0}</span>
+          <div className="reels-icon-circle" style={{ fontSize: '24px' }}>💬</div>
+          <span className="reels-action-count" style={{ fontSize: '11px' }}>{snap.comment_count || 0}</span>
         </div>
 
         <div className="reels-action-btn" onClick={handleShare}>
-          <div className="reels-icon-circle">✈️</div>
-          <span className="reels-action-count">공유</span>
+          <div className="reels-icon-circle" style={{ fontSize: '24px' }}>✈️</div>
+          <span className="reels-action-count" style={{ fontSize: '11px' }}>공유</span>
         </div>
 
         {currentUserId === snap.user_id && (
           <>
             <div className="reels-action-btn" onClick={(e) => { e.stopPropagation(); onEditOpen(snap); }}>
-              <div className="reels-icon-circle">✏️</div>
+              <div className="reels-icon-circle" style={{ fontSize: '20px' }}>✏️</div>
             </div>
             <div className="reels-action-btn" onClick={handleDelete}>
-              <div className="reels-icon-circle">🗑️</div>
+              <div className="reels-icon-circle" style={{ fontSize: '20px' }}>🗑️</div>
             </div>
           </>
         )}
