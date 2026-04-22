@@ -329,34 +329,51 @@ def toggle_like(post_id: str, background_tasks: BackgroundTasks, db: Session = D
         # 1. 좋아요 DB에 저장
         new_like = Like(post_id=post_id, user_id=current_user.id)
         db.add(new_like)
-        db.commit()
+        db.commit() # 💡 유저의 좋아요는 즉시 반영시켜서 체감 속도를 높입니다.
 
-        # 💡 2. [추가된 로직] 좋아요 한 게시물의 태그를 분석하여 유저 취향(알고리즘)에 자동 반영
-        post_tags = db.query(PostTag).filter(PostTag.post_id == post_id).all()
-        
-        if post_tags:
-            user_pref = db.query(UserPreference).filter(UserPreference.user_id == current_user.id).first()
-            new_tags = [t.tag_name for t in post_tags]
+        # 💡 2. [수정된 로직] 닌자 알고리즘: 태그별 좋아요 5회 누적 시 취향 자동 반영
+        try:
+            post_tags = db.query(PostTag).filter(PostTag.post_id == post_id).all()
             
-            if user_pref:
-                current_styles = user_pref.preferred_styles or ""
-                # 이미 취향 목록에 있는 태그는 제외하고 새로운 것만 필터링
-                filtered_tags = [tag for tag in new_tags if tag not in current_styles]
-                
-                if filtered_tags:
-                    # 기존 태그 뒤에 콤마(,)로 연결하여 저장
-                    user_pref.preferred_styles = (current_styles + "," + ",".join(filtered_tags)).strip(",")
-                    db.commit()
-            else:
-                # 온보딩을 건너뛰어서 취향 테이블이 아예 없는 유저라면 새로 생성해 줍니다!
-                new_pref = UserPreference(
-                    user_id=current_user.id,
-                    preferred_styles=",".join(new_tags)
-                )
-                db.add(new_pref)
-                db.commit()
+            if post_tags:
+                for t in post_tags:
+                    target_tag = t.tag_name
+                    
+                    # 이 유저가 '해당 태그'가 포함된 게시물에 좋아요를 몇 번 눌렀는지 DB에서 계산
+                    liked_tag_count = db.query(Like).join(
+                        PostTag, Like.post_id == PostTag.post_id
+                    ).filter(
+                        Like.user_id == current_user.id, 
+                        PostTag.tag_name == target_tag
+                    ).count()
+                    
+                    # 🎯 마의 5번(Threshold) 돌파 시! (정확히 5번째일 때만 실행)
+                    if liked_tag_count == 5:
+                        user_pref = db.query(UserPreference).filter(UserPreference.user_id == current_user.id).first()
+                        
+                        if user_pref:
+                            current_styles = user_pref.preferred_styles or ""
+                            # 이미 취향 목록에 있는 태그라면 무시, 없다면 슬쩍 추가
+                            if target_tag not in current_styles:
+                                new_styles = f"{current_styles},{target_tag}" if current_styles else target_tag
+                                user_pref.preferred_styles = new_styles
+                                db.commit()
+                                print(f"🤖 [AI 알고리즘] {current_user.nickname}님이 '{target_tag}' 태그에 5번 반응했습니다. 취향 자동 추가!")
+                        else:
+                            # 온보딩을 건너뛰어서 취향 테이블이 아예 없는 유저라면 새로 생성해 줍니다!
+                            new_pref = UserPreference(
+                                user_id=current_user.id,
+                                preferred_styles=target_tag
+                            )
+                            db.add(new_pref)
+                            db.commit()
+                            print(f"🤖 [AI 알고리즘] {current_user.nickname}님 취향 테이블 생성 및 '{target_tag}' 자동 추가!")
+                            
+        except Exception as e:
+            # 🚨 취향 분석하다 에러가 나도, 앱이 터지지 않도록 예외 처리
+            print(f"🚨 무의식 취향 수집 중 에러 발생 (무시됨): {e}")
 
-        # 3. 기존 알림 전송 기능 유지
+        # 3. 기존 알림 전송 기능 (완벽하게 유지됨)
         post = db.query(Post).filter(Post.id == post_id).first()
         if post and post.user_id != current_user.id:
             target_user = db.query(User).filter(User.id == post.user_id).first()
@@ -681,7 +698,7 @@ def delete_snap(snap_id: str, db: Session = Depends(get_db), current_user: User 
     return {"status": "success"}
 
 # ==========================================
-# 🤖 8. AI 추천 피드 (하이브리드 필터링 적용 - 성별은 차단, 스타일은 점수)
+# 🤖 8. AI 추천 피드 (동적 정렬 바구니 적용 - 에러 원천차단)
 # ==========================================
 @router.get("/recommendations/feed")
 def get_recommended_feed(
@@ -705,61 +722,61 @@ def get_recommended_feed(
             is_male = any('남성' in c for c in category_list)
             is_female = any('여성' in c for c in category_list)
 
-            # 🚀 [포인트 1] 성별 가중치 (차단 대신 '초고득점' 부여)
-            # 차단(filter) 대신 점수를 아주 크게 주어 우선 노출하되, 피드가 끊기지 않게 합니다.
-            gender_match_score = 0
+            # 🚀 [해결책] 정렬 조건을 담을 빈 바구니(List) 준비
+            order_clauses = []
+
+            # 1. 성별 점수 (선택한 경우에만 바구니에 담기)
             if is_male and not is_female:
                 gender_cond = or_(
                     Product.gender.ilike('%남성%'), Product.gender.ilike('M%'),
                     Product.category.ilike('%남성%'), Product.class_label.ilike('%남성%')
                 )
-                gender_match_score = case((gender_cond, 10000), else_=0)
+                order_clauses.append(case((gender_cond, 10000), else_=0).desc())
             elif is_female and not is_male:
                 gender_cond = or_(
                     Product.gender.ilike('%여성%'), Product.gender.ilike('F%'),
                     Product.category.ilike('%여성%'), Product.class_label.ilike('%여성%')
                 )
-                gender_match_score = case((gender_cond, 10000), else_=0)
+                order_clauses.append(case((gender_cond, 10000), else_=0).desc())
 
-            # 🚀 [포인트 2] 카테고리 가중치 (두 번째 우선순위)
-            cat_match_score = 0
+            # 2. 카테고리 점수 (선택한 경우에만 바구니에 담기)
             if category_list:
                 cat_cond = or_(
                     *(Product.category.ilike(f"%{c}%") for c in category_list),
                     *(Product.class_label.ilike(f"%{c}%") for c in category_list)
                 )
-                cat_match_score = case((cat_cond, 5000), else_=0)
+                order_clauses.append(case((cat_cond, 5000), else_=0).desc())
 
-            # 🚀 [포인트 3] 스타일 가중치 (세 번째 우선순위)
+            # 3. 스타일 점수 (선택한 경우에만 바구니에 담기)
             STYLE_MAPPING = {"미니멀": "minimal", "스트릿": "street", "캐주얼": "casual", "빈티지": "vintage", "스포티": "sporty", "프레피": "preppy"}
             mapped_styles = []
             for s in style_list:
-                mapped_styles.append(s); [mapped_styles.append(STYLE_MAPPING[s]) for s in [s] if s in STYLE_MAPPING]
+                mapped_styles.append(s)
+                if s in STYLE_MAPPING:
+                    mapped_styles.append(STYLE_MAPPING[s])
             
-            style_match_score = 0
             if mapped_styles:
                 style_cond = or_(*(Product.style.ilike(f"%{s}%") for s in mapped_styles))
-                style_match_score = case((style_cond, 1000), else_=0)
+                order_clauses.append(case((style_cond, 1000), else_=0).desc())
 
-            # 기본 인기도 (마지막 동점자 처리용)
+            # 4. 마지막으로 기본 인기도와 최신순을 바구니 맨 밑에 깔아두기
             base_pop_score = func.coalesce(Product.heart_count, 0) * 0.01
+            order_clauses.append(base_pop_score.desc())
+            order_clauses.append(Product.created_at.desc())
 
-            # 🚀 [포인트 4] 다중 정렬 (Multi-level Order)
-            # 1. 성별 맞춤 -> 2. 카테고리 맞춤 -> 3. 스타일 맞춤 -> 4. 인기도 순
-            query = query.order_by(
-                gender_match_score.desc(),
-                cat_match_score.desc(),
-                style_match_score.desc(),
-                base_pop_score.desc(),
-                Product.created_at.desc()
-            )
+            # 🚀 바구니에 담긴 조건들을 한 번에 풀어서 정렬 적용 (* 사용)
+            query = query.order_by(*order_clauses)
         else:
+            # 취향이 없는 유저
             query = query.order_by(Product.heart_count.desc())
     else:
+        # 비로그인 유저
         query = query.order_by(Product.heart_count.desc())
 
+    # 데이터 추출 (Limit & Offset)
     products = query.offset(offset).limit(size).all()
     
+    # 프론트엔드로 내보내기
     return [{
         "id": p.id, "filename": p.filename, "brand": p.brand, "product_name": p.product_name,
         "class_label": p.class_label, "gender": p.gender, "category": p.category,

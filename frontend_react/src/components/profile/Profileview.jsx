@@ -1,21 +1,20 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useTranslation } from 'react-i18next'; // 💡 다국어 훅 추가
+import { useTranslation } from 'react-i18next';
 import { fetchMyPosts, fetchUserProfile, toggleFollowApi, API_URL } from '../../api/api'; 
 import { useAuth } from '../../context/Authcontext'; 
-import { formatApiError } from '../../utils/formatApiError'; // 💡 에러 포매터 추가
+import { formatApiError } from '../../utils/formatApiError';
 import ProfileEditModal from '../modals/ProfileEditModal'; 
-import TranslatableText from '../common/TranslatableText'; // 💡 본문 번역 컴포넌트 추가
-
-// 💡 ChatRoomModal은 이제 CommunityPage에서 관리하므로 여기서 직접 임포트할 필요가 없습니다.
+import PreferenceOnboarding from '../modals/PreferenceOnboarding'; // 💡 취향 설정 모달 임포트
+import TranslatableText from '../common/TranslatableText';
 
 export default function ProfileView({ targetUserId, onOpenChat }) {
-  const { t } = useTranslation(); // 💡 다국어 함수 가져오기
+  const { t } = useTranslation();
   const { currentUserId } = useAuth(); 
   const [posts, setPosts] = useState([]);
   const [profile, setProfile] = useState(null); 
   const [loading, setLoading] = useState(true);
   const [editModalOpen, setEditModalOpen] = useState(false); 
-  // const [isChatOpen, setIsChatOpen] = useState(false); 💡 중앙 관리를 위해 제거
+  const [prefModalOpen, setPrefModalOpen] = useState(false); // 💡 취향 모달 상태 추가
   const [isFollowing, setIsFollowing] = useState(false); 
 
   const getFullImageUrl = (url) => {
@@ -97,12 +96,23 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
             {profile?.bio ? <TranslatableText text={profile.bio} compact /> : t('profile.defaultBio')}
           </div>
           
-          <div className="profile-actions" style={{ display: 'flex', gap: '10px' }}>
+          <div className="profile-actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             {(!profile || currentUserId === profile.id) ? (
               <>
                 <button type="button" className="btn-profile-action" onClick={() => setEditModalOpen(true)}>
                   {t('profile.editProfile')}
                 </button>
+                
+                {/* 💡 [새로 추가] 내 취향 설정 버튼 */}
+                <button 
+                  type="button" 
+                  className="btn-profile-action" 
+                  onClick={() => setPrefModalOpen(true)}
+                  style={{ backgroundColor: 'var(--warm-white)', border: '1px solid #ddd' }}
+                >
+                  ⚙️ {t('profile.prefSettings', '내 취향 설정')}
+                </button>
+
                 <button type="button" className="btn-profile-action">
                   {t('profile.savedStories')}
                 </button>
@@ -123,7 +133,6 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
                 <button 
                   type="button"
                   className="btn-profile-action" 
-                  // 💡 부모 컴포넌트(CommunityPage)에서 전달받은 채팅창 열기 함수 실행
                   onClick={() => onOpenChat(profile)} 
                   style={{ color: 'var(--rust)', borderColor: 'var(--rust)', fontWeight: 'bold' }}
                 >
@@ -175,6 +184,7 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
         </div>
       )}
 
+      {/* 프로필 수정 모달 */}
       <ProfileEditModal 
         isOpen={editModalOpen} 
         user={profile} 
@@ -182,7 +192,16 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
         onUpdated={loadData} 
       />
 
-      {/* 💡 ChatRoomModal은 이제 여기서 직접 렌더링하지 않고 CommunityPage에서 한 번에 관리합니다. */}
+      {/* 💡 [새로 추가] AI 취향 설정 모달 */}
+      <PreferenceOnboarding 
+        isOpen={prefModalOpen} 
+        onClose={() => setPrefModalOpen(false)}
+        onSave={() => {
+          setPrefModalOpen(false);
+          // 취향이 바뀌면 추천 피드에 영향이 가므로, 필요한 경우 피드를 리로드하게 할 수 있습니다.
+          alert(t('profile.prefSaved', '취향이 성공적으로 반영되었습니다!'));
+        }}
+      />
     </div>
   );
 }

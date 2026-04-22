@@ -1,6 +1,6 @@
 import os
 import shutil
-import uuid # 💡 닉네임 중복 방지를 위한 고유 번호 생성 모듈
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -10,7 +10,6 @@ from uuid import UUID
 from jose import JWTError, jwt
 
 from app.db.session import get_db
-# 💡 UserPreference 모델 통합 임포트
 from app.models.models import User, Follow, Post, UserPreference 
 from app.core import security
 from app.core.config import settings
@@ -51,7 +50,6 @@ class FCMTokenRequest(BaseModel):
 class FirebaseTokenRequest(BaseModel):
     id_token: str
 
-# 💡 [핵심 추가] 프론트엔드에서 넘어오는 취향 데이터 규격 직접 정의 (NameError 완벽 차단)
 class UserPreferenceUpdate(BaseModel):
     preferred_categories: Optional[str] = None
     preferred_styles: Optional[str] = None
@@ -124,7 +122,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": access_token, "token_type": "bearer"}
 
 # ==========================================
-# 3. 신규 프로필 및 팔로우 API
+# 3. 프로필 및 팔로우 API
 # ==========================================
 @router.get("/{user_id}/profile")
 def get_user_profile(
@@ -132,14 +130,11 @@ def get_user_profile(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user_optional)
 ):
-    """특정 유저의 프로필 정보, 게시물 수, 팔로우 통계 조회"""
     target_user = db.query(User).filter(User.id == user_id).first()
     if not target_user:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
     
-    # 해당 유저의 전체 게시물 개수를 DB에서 직접 셉니다.
     posts_count = db.query(Post).filter(Post.user_id == user_id).count()
-
     followers_count = db.query(Follow).filter(Follow.following_id == user_id).count()
     following_count = db.query(Follow).filter(Follow.follower_id == user_id).count()
     
@@ -229,101 +224,92 @@ def toggle_follow(target_user_id: UUID, db: Session = Depends(get_db), current_u
         return {"status": "followed"}
 
 # ==========================================
-# 🔍 유저 검색 API (@ 검색용)
+# 4. 검색 및 알림 API
 # ==========================================
 @router.get("/search")
 def search_users(q: str, db: Session = Depends(get_db)):
     search_query = q.replace("@", "").strip()
-    
     if not search_query:
         return []
-
     users = db.query(User).filter(
-        or_(
-            User.nickname.ilike(f"%{search_query}%"),
-            User.email.ilike(f"%{search_query}%")
-        )
+        or_(User.nickname.ilike(f"%{search_query}%"), User.email.ilike(f"%{search_query}%"))
     ).limit(10).all()
+    return [{"id": str(u.id), "nickname": u.nickname, "email": u.email, "profile_image_url": u.profile_image_url} for u in users]
 
-    return [
-        {
-            "id": str(u.id), 
-            "nickname": u.nickname, 
-            "email": u.email, 
-            "profile_image_url": u.profile_image_url
-        } 
-        for u in users
-    ]
-
-# ==========================================
-# 🔔 FCM 토큰 저장 API
-# ==========================================
 @router.post("/fcm-token")
-async def update_fcm_token(
-    request: FCMTokenRequest, 
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+async def update_fcm_token(request: FCMTokenRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     current_user.fcm_token = request.fcm_token
     db.commit()
-    return {"status": "success", "message": "FCM 토큰이 성공적으로 저장되었습니다."}
+    return {"status": "success", "message": "FCM 토큰 저장 완료"}
 
 # ==========================================
-# 🌐 파이어베이스(구글) 소셜 로그인 연동 API
+# 5. 소셜 로그인 API
 # ==========================================
 @router.post("/firebase-login")
 def login_with_firebase(request: FirebaseTokenRequest, db: Session = Depends(get_db)):
     try:
         decoded_token = firebase_auth.verify_id_token(request.id_token, clock_skew_seconds=10)
-        
         email = decoded_token.get('email')
         name = decoded_token.get('name', '구글유저')
         picture = decoded_token.get('picture', '')
-
         if not email:
             raise HTTPException(status_code=400, detail="이메일 정보가 없습니다.")
-
         user = db.query(User).filter(User.email == email).first()
-
         if not user:
             unique_suffix = str(uuid.uuid4())[:6]
-            safe_nickname = f"{name}_{unique_suffix}"
-
             user = User(
                 email=email,
-                nickname=safe_nickname, 
+                nickname=f"{name}_{unique_suffix}", 
                 profile_image_url=picture,
                 password_hash="SOCIAL_LOGIN", 
-                bio="패션 커뮤니티에 오신 것을 환영합니다!"
+                bio="Fashion.2.Cation에 오신 것을 환영합니다!"
             )
             db.add(user)
             db.commit()
             db.refresh(user)
-
         access_token = create_access_token(data={"sub": str(user.id)})
         return {"access_token": access_token, "token_type": "bearer"}
-
     except Exception as e:
-        print("Firebase Auth Error:", e)
         raise HTTPException(status_code=401, detail="유효하지 않은 구글 로그인입니다.")
 
 # ==========================================
-# 🎯 [신규] 유저 취향(온보딩) 저장 API
+# 🎯 6. 유저 취향 설정 (조회 및 수정)
 # ==========================================
+
+# [신규] 내 취향 정보 가져오기 (설정 화면 로딩용)
+@router.get("/me/preferences")
+def get_my_preferences(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """현재 로그인한 유저의 저장된 취향을 반환합니다."""
+    pref = db.query(UserPreference).filter(UserPreference.user_id == current_user.id).first()
+    
+    # 데이터가 없으면 프론트엔드 에러 방지를 위해 기본값 반환
+    if not pref:
+        return {
+            "preferred_categories": "",
+            "preferred_styles": "",
+            "preferred_colors": "",
+            "preferred_gender": ""
+        }
+    return pref
+
+# [유지/수정] 취향 정보 저장 및 업데이트
 @router.put("/me/preferences")
 async def update_my_preferences(
     pref_data: UserPreferenceUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 기존 취향 확인
+    """유저의 취향 정보를 생성하거나 갱신합니다."""
     pref = db.query(UserPreference).filter(UserPreference.user_id == current_user.id).first()
     
     if not pref:
         pref = UserPreference(user_id=current_user.id)
         db.add(pref)
 
-    # 데이터 업데이트 (온보딩 모달에서 쉼표로 연결된 문자열로 옴)
+    # 필드가 전달된 경우에만 업데이트 (상태 유지)
     if pref_data.preferred_categories is not None: 
         pref.preferred_categories = pref_data.preferred_categories
     if pref_data.preferred_styles is not None: 
