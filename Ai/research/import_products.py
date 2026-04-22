@@ -16,8 +16,11 @@ from dotenv import load_dotenv
 
 # ── 프로젝트 루트를 sys.path 에 추가 ──────────────────────
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+AI_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT_DIR)
-load_dotenv(os.path.join(ROOT_DIR, ".env"))
+
+# .env 탐색: Ai/.env → 프로젝트 루트/.env 순서
+load_dotenv(os.path.join(AI_DIR, ".env")) or load_dotenv(os.path.join(ROOT_DIR, ".env"))
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
