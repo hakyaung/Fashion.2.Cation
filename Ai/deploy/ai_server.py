@@ -119,6 +119,14 @@ OUTFIT_PAIRS = {
 MIN_CONFIDENCE = 25.0
 
 
+def _split_class_label(class_label: str) -> tuple[str | None, str | None]:
+    """'남성_상의' → ('남성', '상의'). 형식이 다르면 (None, class_label)."""
+    if "_" in class_label:
+        gender, _, category = class_label.partition("_")
+        return gender, category
+    return None, class_label
+
+
 def _run_yolo(image_bytes: bytes) -> tuple[list, dict | None]:
     """YOLOv8 추론 실행. (detections 리스트, best 딕셔너리 or None) 반환."""
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -132,9 +140,15 @@ def _run_yolo(image_bytes: bytes) -> tuple[list, dict | None]:
     for box in boxes:
         class_id   = int(box.cls.item())
         confidence = round(float(box.conf.item()) * 100, 2)
+        class_label = class_names[class_id] if class_id < len(class_names) else "unknown"
+        gender, category = _split_class_label(class_label)
         entry = {
-            "category":   class_names[class_id] if class_id < len(class_names) else "unknown",
-            "confidence": confidence,
+            "class_label": class_label,
+            "category":    category,
+            "gender":      gender,
+            "color":       None,  # YOLO 탐지 모델에서는 예측 불가 — 별도 분류기 필요
+            "style":       None,
+            "confidence":  confidence,
         }
         # bbox는 /predict 엔드포인트에서만 필요하므로 선택적으로 추가
         if hasattr(box, "xyxy"):
@@ -167,30 +181,16 @@ async def predict_image(file: UploadFile = File(...)):
             "detections": []
         }
 
-    detections = []
-    for box in result.boxes:
-        class_id   = int(box.cls.item())
-        confidence = round(float(box.conf.item()) * 100, 2)
-        x1, y1, x2, y2 = [round(v, 2) for v in box.xyxy[0].tolist()]
-        detections.append({
-            "category":   class_names[class_id] if class_id < len(class_names) else "unknown",
-            "confidence": confidence,
-            "bbox":       {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
-        })
-
-    detections.sort(key=lambda d: d["confidence"], reverse=True)
-    best = detections[0]
-
-    if best["confidence"] < 25.0:
+    if best is None:
         return {
             "status":     "failed",
-            "message":    f"신뢰도가 너무 낮습니다. ({best['confidence']}%)",
+            "message":    f"신뢰도가 너무 낮습니다. ({detections[0]['confidence']}%)",
             "detections": detections
         }
 
     return {
         "status":     "success",
-        "detections": detections,  # 모든 검출된 객체 반환
+        "detections": detections,
     }
 
 
@@ -219,7 +219,7 @@ async def recommend_by_image(
     if best is None:
         return {"status": "failed", "message": f"신뢰도 낮음 ({detections[0]['confidence']}%)", "products": []}
 
-    detected_class = best["category"]
+    detected_class = best["class_label"]
 
     with _Session() as db:
         rows = db.execute(
@@ -235,6 +235,8 @@ async def recommend_by_image(
     return {
         "status":         "success",
         "detected_class": detected_class,
+        "category":       best["category"],
+        "gender":         best["gender"],
         "confidence":     best["confidence"],
         "products":       [dict(r._mapping) for r in rows],
     }
@@ -242,13 +244,18 @@ async def recommend_by_image(
 
 @app.get("/recommend/popular")
 def recommend_popular(
-    category: Optional[str] = Query(None, description="상의/하의/아우터/원피스/스커트/신발"),
-    gender:   Optional[str] = Query(None, description="남성/여성/공용"),
-    limit:    int           = Query(20, ge=1, le=100),
+    category:    Optional[str]   = Query(None, description="상의/하의/아우터/원피스/스커트/신발"),
+    gender:      Optional[str]   = Query(None, description="남성/여성/공용"),
+    class_label: Optional[str]   = Query(None, description="남성_상의 등 class_label"),
+    style:       Optional[str]   = Query(None, description="casual, street, formal 등"),
+    color:       Optional[str]   = Query(None, description="black, white, blue 등"),
+    min_price:   Optional[float] = Query(None, ge=0),
+    max_price:   Optional[float] = Query(None, ge=0),
+    limit:       int             = Query(20, ge=1, le=100),
 ):
     """
     heart_count × 2 + review_count 기준 인기 상품을 추천합니다.
-    category, gender 로 필터링 가능합니다.
+    category, gender, class_label, style, color, 가격대로 필터링 가능합니다.
     """
     if not DB_AVAILABLE:
         return {"status": "failed", "message": "DB 연결 없음"}
@@ -259,17 +266,36 @@ def recommend_popular(
                 SELECT *,
                        COALESCE(heart_count, 0) * 2 + COALESCE(review_count, 0) AS score
                 FROM products
-                WHERE (:category IS NULL OR category = :category)
-                  AND (:gender   IS NULL OR gender   = :gender OR gender = '공용')
+                WHERE (:category    IS NULL OR category    = :category)
+                  AND (:gender      IS NULL OR gender      = :gender OR gender = '공용')
+                  AND (:class_label IS NULL OR class_label = :class_label)
+                  AND (:style       IS NULL OR style       = :style)
+                  AND (:color       IS NULL OR color       = :color)
+                  AND (:min_price   IS NULL OR price      >= :min_price)
+                  AND (:max_price   IS NULL OR price      <= :max_price)
                 ORDER BY score DESC
                 LIMIT :lim
             """),
-            {"category": category, "gender": gender, "lim": limit}
+            {
+                "category":    category,
+                "gender":      gender,
+                "class_label": class_label,
+                "style":       style,
+                "color":       color,
+                "min_price":   min_price,
+                "max_price":   max_price,
+                "lim":         limit,
+            }
         ).fetchall()
 
     return {
         "status":   "success",
         "source":   "popular",
+        "filters":  {
+            "category": category, "gender": gender, "class_label": class_label,
+            "style": style, "color": color,
+            "min_price": min_price, "max_price": max_price,
+        },
         "products": [dict(r._mapping) for r in rows],
     }
 
