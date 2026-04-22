@@ -31,3 +31,19 @@ class ChatRoomResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ProductResponse(BaseModel):
+    id: int
+    product_name: Optional[str]
+    brand: Optional[str]
+    image_url: Optional[str]
+    price: Optional[float]
+    discount_rate: Optional[float]
+    heart_count: Optional[int]
+    review_count: Optional[int]
+    class_label: str
+    style: Optional[str]
+    color: Optional[str]
+
+    class Config:
+        from_attributes = True

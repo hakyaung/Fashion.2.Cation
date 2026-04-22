@@ -1,12 +1,12 @@
 # app/api/posts.py
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status, Request
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status, Request, Query
 from sqlalchemy.orm import Session, joinedload 
 from typing import List, Optional
 import uuid
 import os
 import requests 
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from app.db.session import get_db
 from app.api.deps import get_current_user
@@ -170,6 +170,9 @@ def get_fashion_feed(
                 distance_expr.asc().nulls_last(), 
                 Post.created_at.desc()
             )
+        # 💡 [핵심 추가] 랜덤 피드 정렬 로직 (무작위로 섞음)
+        elif sort_by == "random":
+            query = query.order_by(func.random())
         else:
             query = query.order_by(Post.created_at.desc())
 
@@ -484,7 +487,7 @@ def get_snap_comments(snap_id: str, db: Session = Depends(get_db)):
     } for c in comments]
 
 # ==========================================
-# 💡 [추가] 스냅 댓글 수정 및 삭제 전용 로직
+# 💡 스냅 댓글 수정 및 삭제 전용 로직
 # ==========================================
 def _snap_comment_for_moderation(db: Session, snap_id: str, comment_id: int, current_user: User) -> SnapComment:
     comment = db.query(SnapComment).filter(SnapComment.id == comment_id, SnapComment.snap_id == snap_id).first()
@@ -495,7 +498,6 @@ def _snap_comment_for_moderation(db: Session, snap_id: str, comment_id: int, cur
     if not snap:
         raise HTTPException(status_code=404, detail="해당 스냅을 찾을 수 없습니다.")
     
-    # 본인이 쓴 댓글이거나, 이 스냅 영상의 주인일 때만 수정/삭제 권한 부여
     if comment.user_id != current_user.id and snap.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="댓글을 수정하거나 삭제할 권한이 없습니다.")
     
@@ -559,3 +561,52 @@ def delete_snap(snap_id: str, db: Session = Depends(get_db), current_user: User 
     db.delete(snap)
     db.commit()
     return {"status": "success"}
+
+# ==========================================
+# 🤖 8. [새로 추가됨] AI 추천 피드 (무한 스크롤)
+# ==========================================
+@router.get("/recommendations/feed")
+def get_recommended_feed(
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    offset = (page - 1) * size
+    
+    # 기본 점수: 인기도 (하트 1.5점, 리뷰 1.0점)
+    base_score_logic = "COALESCE(heart_count, 0) * 1.5 + COALESCE(review_count, 0) * 1.0"
+    preference_logic = "0" 
+    
+    # 로그인한 유저라면 취향 데이터베이스를 조회하여 가산점 부여
+    if current_user:
+        pref = db.execute(
+            text("SELECT * FROM user_preferences WHERE user_id = :uid"), 
+            {"uid": str(current_user.id)}
+        ).fetchone()
+        
+        if pref:
+            # SQLAlchemy 2.0 Row 매핑 안전 처리
+            pref_dict = pref._mapping if hasattr(pref, '_mapping') else dict(pref)
+            
+            styles = pref_dict.get('preferred_styles') or ""
+            categories = pref_dict.get('preferred_categories') or ""
+            
+            preference_logic = f"""
+                (CASE WHEN '{styles}' LIKE '%' || style || '%' THEN 50 ELSE 0 END) +
+                (CASE WHEN '{categories}' LIKE '%' || category || '%' THEN 50 ELSE 0 END)
+            """
+
+    # 최종 쿼리: 기본 점수와 취향 점수를 합산하여 내림차순 정렬 (무한 스크롤 적용)
+    query = text(f"""
+        SELECT *, 
+               ({base_score_logic}) + ({preference_logic}) AS total_score
+        FROM products
+        ORDER BY total_score DESC, created_at DESC
+        LIMIT :limit OFFSET :offset
+    """)
+    
+    products = db.execute(query, {"limit": size, "offset": offset}).fetchall()
+    
+    # 딕셔너리 형태로 변환하여 반환
+    return [dict(p._mapping if hasattr(p, '_mapping') else dict(p)) for p in products]

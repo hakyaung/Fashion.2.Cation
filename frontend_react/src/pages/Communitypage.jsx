@@ -33,7 +33,10 @@ export default function CommunityPage() {
   // ==========================================
   const [activeView, setActiveView] = useState('home'); 
   const [viewUserId, setViewUserId] = useState(null); 
-  const [sort, setSort] = useState('latest');
+  
+  // 💡 [핵심 수정] 기본 피드 상태를 'random'으로 설정
+  const [sort, setSort] = useState('random'); 
+  
   const [searchKeyword, setSearchKeyword] = useState('');
   const [userGeo, setUserGeo] = useState({ lat: null, lng: null });
   const [feedKey, setFeedKey] = useState(0);
@@ -99,8 +102,14 @@ export default function CommunityPage() {
     handleNavigate('profile', userId);
   }, [handleNavigate]);
 
+  // 💡 [핵심 수정] 같은 필터를 다시 누르면 'random'으로 해제되도록 변경
   const handleSort = useCallback((newSort) => {
-    setSort(newSort);
+    setSort((prevSort) => {
+      if (prevSort === newSort && newSort !== 'random') {
+        return 'random';
+      }
+      return newSort;
+    });
     setActiveView('home');
     setFeedKey((k) => k + 1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -110,7 +119,7 @@ export default function CommunityPage() {
     const keyword = tag.replace('#', '').trim();
     setSearchKeyword(keyword);
     setDebouncedKeyword(keyword);
-    setSort('latest');
+    setSort('random'); // 💡 태그 검색 시에도 기본을 랜덤 피드로 설정
     setActiveView('home');
     setFeedKey((k) => k + 1);
   }, []);
@@ -123,7 +132,10 @@ export default function CommunityPage() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setSort('nearby');
+        
+        // 💡 [핵심 수정] 주변 지역(nearby) 역시 한번 더 누르면 랜덤(random)으로 해제
+        setSort((prevSort) => (prevSort === 'nearby' ? 'random' : 'nearby'));
+        
         setActiveView('home');
         setFeedKey((k) => k + 1);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -142,7 +154,7 @@ export default function CommunityPage() {
 
   const handlePosted = useCallback(() => {
     setActiveView('home');
-    setSort('latest');
+    setSort('latest'); // 새 글 작성 직후엔 자신이 쓴 글을 확인하도록 최신순 유지
     setSearchKeyword('');
     setDebouncedKeyword('');
     setFeedKey((k) => k + 1);

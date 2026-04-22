@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Float, Boolean, DateTime, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Float, Boolean, DateTime, UniqueConstraint, SmallInteger
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -51,6 +51,9 @@ class User(Base):
         cascade="all, delete-orphan"
     )
 
+    # 💡 [새로 추가됨] AI 추천용 유저 선호도 (1:1 관계)
+    preferences = relationship("UserPreference", back_populates="user", uselist=False, cascade="all, delete-orphan")
+
 class Post(Base):
     __tablename__ = "posts"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -68,7 +71,7 @@ class Post(Base):
     comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
 
 # ==========================================
-# 🎬 [수정됨] 스냅(숏폼 영상) 테이블 - 메타데이터 강화
+# 🎬 스냅(숏폼 영상) 테이블 - 메타데이터 강화
 # ==========================================
 class Snap(Base):
     __tablename__ = "snaps"
@@ -76,7 +79,6 @@ class Snap(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
     
-    # 💡 지역 정보 외래키 추가 (일반 게시물과 동일)
     location_id = Column(Integer, ForeignKey("locations.id", ondelete="SET NULL"), nullable=True)
     
     video_url = Column(Text, nullable=False) 
@@ -85,16 +87,14 @@ class Snap(Base):
 
     # 관계 설정
     user = relationship("User", back_populates="snaps")
-    location = relationship("Location", back_populates="snaps") # 💡 지역 관계 연결
+    location = relationship("Location", back_populates="snaps") 
     
-    # 💡 스냅 전용 태그 연결
     tags = relationship("SnapTag", back_populates="snap", cascade="all, delete-orphan")
-    
     likes = relationship("SnapLike", back_populates="snap", cascade="all, delete-orphan")
     comments = relationship("SnapComment", back_populates="snap", cascade="all, delete-orphan")
 
 # ==========================================
-# 🏷️ [새로 추가됨] 스냅 전용 태그 테이블
+# 🏷️ 스냅 전용 태그 테이블
 # ==========================================
 class SnapTag(Base):
     __tablename__ = "snap_tags"
@@ -131,7 +131,6 @@ class SnapComment(Base):
     
     user = relationship("User", backref="snap_comments_rel")
     snap = relationship("Snap", back_populates="comments")
-
 
 class PostTag(Base):
     __tablename__ = "post_tags"
@@ -175,7 +174,6 @@ class Location(Base):
     longitude = Column(Float, nullable=True)
 
     posts = relationship("Post", back_populates="location")
-    # 💡 스냅과의 관계 추가
     snaps = relationship("Snap", back_populates="location")
 
 # ==========================================
@@ -202,3 +200,59 @@ class Message(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     room = relationship("ChatRoom", back_populates="messages")
     sender = relationship("User")
+
+
+# ==========================================
+# 👗 [새로 추가됨] AI 추천용 products 테이블
+# ==========================================
+class Product(Base):
+    __tablename__ = "products"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String(255), nullable=False)
+    brand = Column(String(100))
+    product_name = Column(Text)
+    
+    # 카테고리
+    class_label = Column(String(50), nullable=False, index=True)
+    gender = Column(String(20), index=True)
+    category = Column(String(20), index=True)
+    
+    # 인코딩 코드 (빠른 필터링용)
+    gender_code = Column(SmallInteger)
+    category_code = Column(SmallInteger)
+    class_code = Column(SmallInteger, index=True)
+    
+    # 스타일
+    color = Column(String(50))
+    style = Column(String(50))
+    color_code = Column(SmallInteger)
+    style_code = Column(SmallInteger)
+    
+    # 통계 (인기 추천용)
+    price = Column(Float)
+    discount_rate = Column(Float)
+    review_count = Column(Integer)
+    heart_count = Column(Integer)
+    color_score = Column(Float)
+    style_score = Column(Float)
+    
+    image_url = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+# ==========================================
+# 🎯 [새로 추가됨] 유저 선호도 테이블 (추천 필터링용)
+# ==========================================
+class UserPreference(Base):
+    __tablename__ = "user_preferences"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    preferred_categories = Column(Text)
+    preferred_styles = Column(Text)
+    preferred_colors = Column(Text)
+    preferred_gender = Column(String(20))
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # User 테이블과의 관계
+    user = relationship("User", back_populates="preferences")

@@ -1,3 +1,4 @@
+// frontend_react/src/components/layout/Leftsidebar.jsx
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -11,9 +12,11 @@ export default function LeftSidebar({ activeView, activeSort, onNavigate, onSort
         <li>
           <a
             href="#"
-            className={activeView === 'home' ? 'active' : ''}
+            className={activeView === 'home' && activeSort !== 'recommend' ? 'active' : ''}
             onClick={(e) => {
               e.preventDefault();
+              // '홈'을 누르면 기본 상태인 랜덤 피드로 이동합니다.
+              onSort('random');
               onNavigate('home');
             }}
           >
@@ -58,7 +61,23 @@ export default function LeftSidebar({ activeView, activeSort, onNavigate, onSort
         </li>
 
         {/* ========================================== */}
-        {/* 💡 스냅(숏폼) 피드 메뉴만 남겨두었습니다! */}
+        {/* 💡 AI 추천 의류 메뉴 추가 */}
+        {/* ========================================== */}
+        <li>
+          <a
+            href="#"
+            className={activeView === 'home' && activeSort === 'recommend' ? 'active' : ''}
+            onClick={(e) => {
+              e.preventDefault();
+              onSort('recommend');
+            }}
+          >
+            <span>🤖</span> 추천 의류
+          </a>
+        </li>
+
+        {/* ========================================== */}
+        {/* 💡 스냅(숏폼) 피드 메뉴 */}
         {/* ========================================== */}
         <li>
           <a
@@ -125,7 +144,7 @@ export default function LeftSidebar({ activeView, activeSort, onNavigate, onSort
               onTagSearch('불당동');
             }}
           >
-            #{t('leftSidebar.topicBuldang')}
+            #{t('leftSidebar.topicBuldang', '불당동')}
           </a>
         </li>
         <li>
@@ -137,7 +156,7 @@ export default function LeftSidebar({ activeView, activeSort, onNavigate, onSort
               onTagSearch('신부동');
             }}
           >
-            #{t('leftSidebar.topicSinbu')}
+            #{t('leftSidebar.topicSinbu', '신부동')}
           </a>
         </li>
         <li>
@@ -149,7 +168,7 @@ export default function LeftSidebar({ activeView, activeSort, onNavigate, onSort
               onTagSearch('미니멀룩');
             }}
           >
-            #{t('leftSidebar.topicMinimal')}
+            #{t('leftSidebar.topicMinimal', '미니멀룩')}
           </a>
         </li>
       </ul>
