@@ -27,7 +27,7 @@ from sqlalchemy.orm import sessionmaker
 
 # ── 경로 설정 ─────────────────────────────────────────────
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
-CSV_PATH    = os.path.join(BASE_DIR, "ai_dataset_large", "final_multitask_data.csv")
+CSV_PATH    = os.path.join(BASE_DIR, "ai_dataset_large", "DB_insert_data.csv")
 LABEL_MAP   = os.path.join(BASE_DIR, "ai_dataset_large", "label_maps.json")
 
 # ── DB 연결 ───────────────────────────────────────────────
