@@ -89,6 +89,85 @@ else:
 print(f"🏷️  클래스 {len(class_names)}개: {class_names}")
 
 # ────────────────────────────────────────────────
+# 3-1. 색상/스타일 속성 분류기 (옵션)
+#      fashion_attr.pt 가 있으면 로드, 없으면 color/style 은 None 유지.
+# ────────────────────────────────────────────────
+ATTR_MODEL_PATH = os.path.join(BASE_DIR, "fashion_attr.pt")
+attr_model = None
+attr_transform = None
+color_names: list[str] = []
+style_names: list[str] = []
+
+if os.path.exists(ATTR_MODEL_PATH):
+    try:
+        import torch.nn as nn
+        from torchvision import models, transforms as T
+
+        class _FashionAttributeNet(nn.Module):
+            """train_attribute.py 의 FashionAttributeNet 과 동일한 구조."""
+            def __init__(self, num_colors: int, num_styles: int):
+                super().__init__()
+                backbone = models.resnet18(weights=None)
+                in_features = backbone.fc.in_features
+                backbone.fc = nn.Identity()
+                self.backbone = backbone
+                self.color_head = nn.Linear(in_features, num_colors)
+                self.style_head = nn.Linear(in_features, num_styles)
+
+            def forward(self, x):
+                feat = self.backbone(x)
+                return self.color_head(feat), self.style_head(feat)
+
+        ckpt = torch.load(ATTR_MODEL_PATH, map_location=device, weights_only=False)
+        attr_model = _FashionAttributeNet(ckpt["num_colors"], ckpt["num_styles"])
+        attr_model.load_state_dict(ckpt["state_dict"])
+        attr_model.to(device).eval()
+
+        attr_transform = T.Compose([
+            T.Resize(256),
+            T.CenterCrop(224),
+            T.ToTensor(),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+
+        # 인덱스 → 이름 매핑
+        if color_map:
+            color_names = [color_map[str(i)] for i in range(len(color_map))]
+        if style_map:
+            style_names = [style_map[str(i)] for i in range(len(style_map))]
+
+        print(f"🎨 속성 분류기 로드 완료 (color {len(color_names)}종 · style {len(style_names)}종)")
+    except Exception as e:
+        print(f"⚠️  속성 분류기 로드 실패 (color/style 은 None 반환): {e}")
+        attr_model = None
+else:
+    print("ℹ️  fashion_attr.pt 없음 — color/style 은 None 반환. "
+          "학습: python Ai/research/train_attribute.py")
+
+
+def _classify_attributes(image, bbox: dict | None):
+    """주어진 PIL 이미지(+선택적 bbox)에 대해 color, style 이름을 반환."""
+    if attr_model is None or attr_transform is None:
+        return None, None
+    try:
+        if bbox is not None:
+            crop = image.crop((bbox["x1"], bbox["y1"], bbox["x2"], bbox["y2"]))
+        else:
+            crop = image
+        tensor = attr_transform(crop).unsqueeze(0).to(device)
+        with torch.no_grad():
+            out_color, out_style = attr_model(tensor)
+        color_idx = int(out_color.argmax(1).item())
+        style_idx = int(out_style.argmax(1).item())
+        color = color_names[color_idx] if color_idx < len(color_names) else None
+        style = style_names[style_idx] if style_idx < len(style_names) else None
+        return color, style
+    except Exception as e:
+        print(f"⚠️  속성 분류 중 에러: {e}")
+        return None, None
+
+
+# ────────────────────────────────────────────────
 # 4. DB 연결 (추천 엔드포인트용)
 # ────────────────────────────────────────────────
 from sqlalchemy import create_engine, text
@@ -142,18 +221,25 @@ def _run_yolo(image_bytes: bytes) -> tuple[list, dict | None]:
         confidence = round(float(box.conf.item()) * 100, 2)
         class_label = class_names[class_id] if class_id < len(class_names) else "unknown"
         gender, category = _split_class_label(class_label)
+
+        bbox = None
+        if hasattr(box, "xyxy"):
+            x1, y1, x2, y2 = [round(v, 2) for v in box.xyxy[0].tolist()]
+            bbox = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+
+        # fashion_attr.pt 가 로드돼 있으면 color/style 채우고, 없으면 None 유지
+        color, style = _classify_attributes(image, bbox)
+
         entry = {
             "class_label": class_label,
             "category":    category,
             "gender":      gender,
-            "color":       None,  # YOLO 탐지 모델에서는 예측 불가 — 별도 분류기 필요
-            "style":       None,
+            "color":       color,
+            "style":       style,
             "confidence":  confidence,
         }
-        # bbox는 /predict 엔드포인트에서만 필요하므로 선택적으로 추가
-        if hasattr(box, "xyxy"):
-            x1, y1, x2, y2 = [round(v, 2) for v in box.xyxy[0].tolist()]
-            entry["bbox"] = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+        if bbox is not None:
+            entry["bbox"] = bbox
         detections.append(entry)
 
     detections.sort(key=lambda d: d["confidence"], reverse=True)
@@ -442,6 +528,9 @@ async def health_check():
         "classes":      len(class_names),
         "class_names":  class_names,
         "db":           "connected" if DB_AVAILABLE else "disconnected",
+        "attr_model":   "loaded" if attr_model is not None else "missing",
+        "colors":       color_names if attr_model is not None else [],
+        "styles":       style_names if attr_model is not None else [],
     }
 
 
