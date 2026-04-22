@@ -47,3 +47,9 @@ class ProductResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class UserPreferenceUpdate(BaseModel):
+    preferred_categories: Optional[str] = None
+    preferred_styles: Optional[str] = None
+    preferred_colors: Optional[str] = None
+    preferred_gender: Optional[str] = None

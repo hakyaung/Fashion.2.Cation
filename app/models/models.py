@@ -201,7 +201,6 @@ class Message(Base):
     room = relationship("ChatRoom", back_populates="messages")
     sender = relationship("User")
 
-
 # ==========================================
 # 👗 [새로 추가됨] AI 추천용 products 테이블
 # ==========================================
@@ -248,10 +247,13 @@ class UserPreference(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
-    preferred_categories = Column(Text)
-    preferred_styles = Column(Text)
-    preferred_colors = Column(Text)
-    preferred_gender = Column(String(20))
+    
+    # 💡 [핵심 수정] nullable=True를 명시하여 데이터가 들어갈 수 있도록 보장
+    preferred_categories = Column(Text, nullable=True)
+    preferred_styles = Column(Text, nullable=True)
+    preferred_colors = Column(Text, nullable=True)
+    preferred_gender = Column(String(20), nullable=True)
+    
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # User 테이블과의 관계

@@ -1,5 +1,5 @@
 // frontend_react/src/pages/CommunityPage.jsx
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next'; 
 import { useAuth } from '../context/Authcontext';
 
@@ -23,6 +23,7 @@ import PostModal from '../components/modals/PostModal';
 import CommentModal from '../components/modals/Commentmodal';
 import EditModal from '../components/modals/Editmodal';
 import ChatRoomModal from '../components/modals/ChatRoomModal'; 
+import PreferenceOnboarding from '../components/modals/PreferenceOnboarding'; 
 
 export default function CommunityPage() {
   const { t } = useTranslation(); 
@@ -34,7 +35,7 @@ export default function CommunityPage() {
   const [activeView, setActiveView] = useState('home'); 
   const [viewUserId, setViewUserId] = useState(null); 
   
-  // 💡 [핵심 수정] 기본 피드 상태를 'random'으로 설정
+  // 기본 피드 상태 'random'
   const [sort, setSort] = useState('random'); 
   
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -49,7 +50,9 @@ export default function CommunityPage() {
   const [chatModal, setChatModal] = useState({ isOpen: false, targetUser: null });
   const [postModalOpen, setPostModalOpen] = useState(false);
   
-  // 💡 commentModal 상태: type 뿐만 아니라 실시간 카운트 함수(onAdded, onRemoved)를 담습니다.
+  // 온보딩 모달 상태 관리
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  
   const [commentModal, setCommentModal] = useState({
     open: false,
     postId: null,
@@ -60,6 +63,28 @@ export default function CommunityPage() {
   });
   
   const [editModal, setEditModal] = useState({ open: false, post: null, type: 'post' });
+
+  // ==========================================
+  // 로그인 감지 시 온보딩 모달 자동 오픈 로직
+  // ==========================================
+  useEffect(() => {
+    // 로그인 상태이고, 로컬 스토리지에 온보딩 완료 기록이 없다면 띄웁니다.
+    if (isLoggedIn && !localStorage.getItem('stylescape_onboarding_done')) {
+      setOnboardingOpen(true);
+    }
+  }, [isLoggedIn]);
+
+  const handleOnboardingComplete = useCallback(() => {
+    // 취향 설정 완료 기록을 저장하여 다시 안 뜨게 처리
+    localStorage.setItem('stylescape_onboarding_done', 'true');
+    setOnboardingOpen(false);
+    
+    // 취향 설정 후 즉시 '추천 의류(recommend)' 피드로 전환
+    setSort('recommend');
+    setActiveView('home');
+    setFeedKey(k => k + 1); 
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   // ==========================================
   // 핸들러 함수들
@@ -102,7 +127,6 @@ export default function CommunityPage() {
     handleNavigate('profile', userId);
   }, [handleNavigate]);
 
-  // 💡 [핵심 수정] 같은 필터를 다시 누르면 'random'으로 해제되도록 변경
   const handleSort = useCallback((newSort) => {
     setSort((prevSort) => {
       if (prevSort === newSort && newSort !== 'random') {
@@ -119,7 +143,7 @@ export default function CommunityPage() {
     const keyword = tag.replace('#', '').trim();
     setSearchKeyword(keyword);
     setDebouncedKeyword(keyword);
-    setSort('random'); // 💡 태그 검색 시에도 기본을 랜덤 피드로 설정
+    setSort('random'); 
     setActiveView('home');
     setFeedKey((k) => k + 1);
   }, []);
@@ -132,10 +156,7 @@ export default function CommunityPage() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        
-        // 💡 [핵심 수정] 주변 지역(nearby) 역시 한번 더 누르면 랜덤(random)으로 해제
         setSort((prevSort) => (prevSort === 'nearby' ? 'random' : 'nearby'));
-        
         setActiveView('home');
         setFeedKey((k) => k + 1);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -154,13 +175,12 @@ export default function CommunityPage() {
 
   const handlePosted = useCallback(() => {
     setActiveView('home');
-    setSort('latest'); // 새 글 작성 직후엔 자신이 쓴 글을 확인하도록 최신순 유지
+    setSort('latest'); 
     setSearchKeyword('');
     setDebouncedKeyword('');
     setFeedKey((k) => k + 1);
   }, []);
 
-  // 💡 [핵심 유지] 댓글 모달 오픈 핸들러
   const handleCommentOpen = useCallback((postId, postOwnerId, type = 'post', onAdded, onRemoved) => {
     setCommentModal({ open: true, postId, postOwnerId, type, onAdded, onRemoved });
   }, []);
@@ -173,7 +193,6 @@ export default function CommunityPage() {
     setFeedKey((k) => k + 1);
   }, []);
 
-  // 💡 [기능 유지] IP 자동 감지 로직이 포함된 스냅 삭제 핸들러
   const handleDeleteSnap = useCallback(async (snapId) => {
     const token = localStorage.getItem('stylescape_token');
     if (!token) return;
@@ -248,7 +267,6 @@ export default function CommunityPage() {
             <SnapFeed 
               key={`snap-${feedKey}`}
               onProfileClick={handleProfileClick}
-              // 💡 [수정 포인트] SnapFeed에서 전달하는 onAdded, onRemoved 인자를 handleCommentOpen으로 토스합니다.
               onCommentOpen={(id, ownerId, type, onAdded, onRemoved) => 
                 handleCommentOpen(id, ownerId, type, onAdded, onRemoved)
               }
@@ -285,13 +303,18 @@ export default function CommunityPage() {
       <AuthModal />
       <PostModal isOpen={postModalOpen} onClose={() => setPostModalOpen(false)} onPosted={handlePosted} />
 
+      <PreferenceOnboarding 
+        isOpen={onboardingOpen} 
+        onClose={() => setOnboardingOpen(false)} 
+        onSave={handleOnboardingComplete} 
+      />
+
       <CommentModal
         isOpen={commentModal.open}
         postId={commentModal.postId}
         postOwnerId={commentModal.postOwnerId}
         type={commentModal.type} 
         onClose={() => setCommentModal({ open: false, postId: null, postOwnerId: null, type: 'post', onAdded: null, onRemoved: null })}
-        // 💡 상태에 저장된 카운트 업데이트 함수를 모달에 전달
         onCommentAdded={commentModal.onAdded}
         onCommentRemoved={commentModal.onRemoved}
       />

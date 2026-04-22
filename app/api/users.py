@@ -1,6 +1,6 @@
 import os
 import shutil
-import uuid # 💡 [추가됨] 닉네임 중복 방지를 위한 고유 번호 생성 모듈
+import uuid # 💡 닉네임 중복 방지를 위한 고유 번호 생성 모듈
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -10,14 +10,13 @@ from uuid import UUID
 from jose import JWTError, jwt
 
 from app.db.session import get_db
-from app.models.models import User, Follow, Post 
+# 💡 UserPreference 모델 통합 임포트
+from app.models.models import User, Follow, Post, UserPreference 
 from app.core import security
 from app.core.config import settings
 from sqlalchemy import or_
 
 from app.core.security import create_access_token
-
-# [필수 추가] 파이어베이스 인증 검증용 모듈 임포트!
 from firebase_admin import auth as firebase_auth
 
 router = APIRouter()
@@ -46,13 +45,18 @@ class UserProfileUpdate(BaseModel):
     bio: Optional[str] = None
     profile_image_url: Optional[str] = None
 
-# FCM 토큰 요청 규격
 class FCMTokenRequest(BaseModel):
     fcm_token: str
 
-# 구글 로그인용 토큰 규격
 class FirebaseTokenRequest(BaseModel):
     id_token: str
+
+# 💡 [핵심 추가] 프론트엔드에서 넘어오는 취향 데이터 규격 직접 정의 (NameError 완벽 차단)
+class UserPreferenceUpdate(BaseModel):
+    preferred_categories: Optional[str] = None
+    preferred_styles: Optional[str] = None
+    preferred_colors: Optional[str] = None
+    preferred_gender: Optional[str] = None
 
 # ==========================================
 # 인증 의존성 함수
@@ -229,13 +233,11 @@ def toggle_follow(target_user_id: UUID, db: Session = Depends(get_db), current_u
 # ==========================================
 @router.get("/search")
 def search_users(q: str, db: Session = Depends(get_db)):
-    # 1. 만약 검색어에 @가 섞여있다면 제거하고 순수 키워드만 추출
     search_query = q.replace("@", "").strip()
     
     if not search_query:
         return []
 
-    # 2. 닉네임이나 이메일에 검색어가 포함된 유저 최대 10명 찾기 (대소문자 구분 없음)
     users = db.query(User).filter(
         or_(
             User.nickname.ilike(f"%{search_query}%"),
@@ -243,7 +245,6 @@ def search_users(q: str, db: Session = Depends(get_db)):
         )
     ).limit(10).all()
 
-    # 3. 필요한 정보만 포장해서 반환
     return [
         {
             "id": str(u.id), 
@@ -273,8 +274,6 @@ async def update_fcm_token(
 @router.post("/firebase-login")
 def login_with_firebase(request: FirebaseTokenRequest, db: Session = Depends(get_db)):
     try:
-        # 1. Firebase Admin으로 프론트에서 넘어온 토큰 검증 
-        # clock_skew_seconds=10 을 주어 서버 간 미세한 시간 오차(Time Skew)를 허용합니다.
         decoded_token = firebase_auth.verify_id_token(request.id_token, clock_skew_seconds=10)
         
         email = decoded_token.get('email')
@@ -284,30 +283,55 @@ def login_with_firebase(request: FirebaseTokenRequest, db: Session = Depends(get
         if not email:
             raise HTTPException(status_code=400, detail="이메일 정보가 없습니다.")
 
-        # 2. 우리 DB에 이미 가입된 유저인지 확인
         user = db.query(User).filter(User.email == email).first()
 
-        # 3. 처음 로그인하는 유저라면 DB에 새로 생성 (자동 회원가입)
         if not user:
-            # 💡 [핵심 해결 방법] 닉네임 중복 방지를 위해 구글 이름 뒤에 6자리의 고유 번호를 붙여줍니다!
             unique_suffix = str(uuid.uuid4())[:6]
             safe_nickname = f"{name}_{unique_suffix}"
 
             user = User(
                 email=email,
-                nickname=safe_nickname, # 💡 중복 없는 안전한 닉네임 사용
+                nickname=safe_nickname, 
                 profile_image_url=picture,
-                password_hash="SOCIAL_LOGIN", # 소셜 로그인은 비밀번호가 필요 없음
+                password_hash="SOCIAL_LOGIN", 
                 bio="패션 커뮤니티에 오신 것을 환영합니다!"
             )
             db.add(user)
             db.commit()
             db.refresh(user)
 
-        # 4. 우리 서버 전용 JWT 토큰 발급
         access_token = create_access_token(data={"sub": str(user.id)})
         return {"access_token": access_token, "token_type": "bearer"}
 
     except Exception as e:
         print("Firebase Auth Error:", e)
         raise HTTPException(status_code=401, detail="유효하지 않은 구글 로그인입니다.")
+
+# ==========================================
+# 🎯 [신규] 유저 취향(온보딩) 저장 API
+# ==========================================
+@router.put("/me/preferences")
+async def update_my_preferences(
+    pref_data: UserPreferenceUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 기존 취향 확인
+    pref = db.query(UserPreference).filter(UserPreference.user_id == current_user.id).first()
+    
+    if not pref:
+        pref = UserPreference(user_id=current_user.id)
+        db.add(pref)
+
+    # 데이터 업데이트 (온보딩 모달에서 쉼표로 연결된 문자열로 옴)
+    if pref_data.preferred_categories is not None: 
+        pref.preferred_categories = pref_data.preferred_categories
+    if pref_data.preferred_styles is not None: 
+        pref.preferred_styles = pref_data.preferred_styles
+    if pref_data.preferred_colors is not None: 
+        pref.preferred_colors = pref_data.preferred_colors
+    if pref_data.preferred_gender is not None: 
+        pref.preferred_gender = pref_data.preferred_gender
+    
+    db.commit()
+    return {"status": "success", "message": "취향 설정이 저장되었습니다."}

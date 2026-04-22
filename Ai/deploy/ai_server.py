@@ -21,19 +21,24 @@ YAML_PATH  = os.path.join(BASE_DIR, "..", "research", "ai_dataset_yolo", "datase
 
 # label_maps.json: Docker 환경(같은 폴더) → 로컬 환경(research 폴더) 순으로 탐색
 _label_map_candidates = [
-    os.path.join(BASE_DIR, "label_maps.json"),                                          # Docker
-    os.path.join(BASE_DIR, "..", "research", "ai_dataset_large", "label_maps.json"),    # 로컬
+    os.path.join(BASE_DIR, "label_maps.json"),
+    os.path.join(BASE_DIR, "..", "research", "ai_dataset_large", "label_maps.json"),
 ]
 LABEL_MAP_PATH = next((p for p in _label_map_candidates if os.path.exists(p)), None)
 
 # ────────────────────────────────────────────────
 # 1. API 서버 생성
 # ────────────────────────────────────────────────
+# .env의 ALLOWED_ORIGINS에 쉼표로 구분된 도메인 목록을 입력하세요.
+# 예) ALLOWED_ORIGINS=http://localhost:3000,https://fashion2cation.co.kr
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app = FastAPI(title="Fashion.2.Cation AI 서버")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -99,15 +104,6 @@ except Exception as e:
     print(f"⚠️  DB 연결 실패 (추천 기능 비활성화): {e}")
     DB_AVAILABLE = False
 
-def get_db():
-    if not DB_AVAILABLE:
-        return None
-    db = _Session()
-    try:
-        yield db
-    finally:
-        db.close()
-
 # ────────────────────────────────────────────────
 # 코디 조합 규칙
 # ────────────────────────────────────────────────
@@ -120,23 +116,39 @@ OUTFIT_PAIRS = {
     "신발":   ["상의", "하의", "원피스"],
 }
 
-def row_to_dict(row) -> dict:
-    return {
-        "id":           row.id,
-        "filename":     row.filename,
-        "brand":        row.brand,
-        "product_name": row.product_name,
-        "class_label":  row.class_label,
-        "gender":       row.gender,
-        "category":     row.category,
-        "color":        row.color,
-        "style":        row.style,
-        "price":        row.price,
-        "discount_rate":row.discount_rate,
-        "review_count": row.review_count,
-        "heart_count":  row.heart_count,
-        "image_url":    row.image_url,
-    }
+MIN_CONFIDENCE = 25.0
+
+
+def _run_yolo(image_bytes: bytes) -> tuple[list, dict | None]:
+    """YOLOv8 추론 실행. (detections 리스트, best 딕셔너리 or None) 반환."""
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    results = model.predict(source=image, imgsz=224, conf=0.25, verbose=False, device=device)
+    boxes = results[0].boxes
+
+    if len(boxes) == 0:
+        return [], None
+
+    detections = []
+    for box in boxes:
+        class_id   = int(box.cls.item())
+        confidence = round(float(box.conf.item()) * 100, 2)
+        entry = {
+            "category":   class_names[class_id] if class_id < len(class_names) else "unknown",
+            "confidence": confidence,
+        }
+        # bbox는 /predict 엔드포인트에서만 필요하므로 선택적으로 추가
+        if hasattr(box, "xyxy"):
+            x1, y1, x2, y2 = [round(v, 2) for v in box.xyxy[0].tolist()]
+            entry["bbox"] = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+        detections.append(entry)
+
+    detections.sort(key=lambda d: d["confidence"], reverse=True)
+    best = detections[0]
+
+    if best["confidence"] < MIN_CONFIDENCE:
+        return detections, None
+
+    return detections, best
 
 
 # ════════════════════════════════════════════════
@@ -146,12 +158,9 @@ def row_to_dict(row) -> dict:
 async def predict_image(file: UploadFile = File(...)):
     """YOLOv8 로 이미지를 분석해 카테고리·신뢰도·바운딩박스를 반환합니다."""
     image_bytes = await file.read()
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    detections, best = _run_yolo(image_bytes)
 
-    results = model.predict(source=image, imgsz=224, conf=0.25, verbose=False, device=device)
-    result  = results[0]
-
-    if len(result.boxes) == 0:
+    if not detections:
         return {
             "status":     "failed",
             "message":    "옷을 감지하지 못했습니다. 다른 사진을 사용해 주세요.",
@@ -181,9 +190,7 @@ async def predict_image(file: UploadFile = File(...)):
 
     return {
         "status":     "success",
-        "category":   best["category"],
-        "confidence": best["confidence"],
-        "detections": detections,
+        "detections": detections,  # 모든 검출된 객체 반환
     }
 
 
@@ -203,32 +210,17 @@ async def recommend_by_image(
     if not DB_AVAILABLE:
         return {"status": "failed", "message": "DB 연결 없음"}
 
-    # ① AI 분석
     image_bytes = await file.read()
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    results = model.predict(source=image, imgsz=224, conf=0.25, verbose=False, device=device)
-    result  = results[0]
+    detections, best = _run_yolo(image_bytes)
 
-    if len(result.boxes) == 0:
+    if not detections:
         return {"status": "failed", "message": "옷을 감지하지 못했습니다.", "products": []}
 
-    detections = []
-    for box in result.boxes:
-        class_id   = int(box.cls.item())
-        confidence = round(float(box.conf.item()) * 100, 2)
-        detections.append({
-            "category":   class_names[class_id] if class_id < len(class_names) else "unknown",
-            "confidence": confidence,
-        })
-    detections.sort(key=lambda d: d["confidence"], reverse=True)
-    best = detections[0]
-
-    if best["confidence"] < 25.0:
-        return {"status": "failed", "message": f"신뢰도 낮음 ({best['confidence']}%)", "products": []}
+    if best is None:
+        return {"status": "failed", "message": f"신뢰도 낮음 ({detections[0]['confidence']}%)", "products": []}
 
     detected_class = best["category"]
 
-    # ② DB에서 같은 class_label 상품 조회
     with _Session() as db:
         rows = db.execute(
             text("""
@@ -261,29 +253,18 @@ def recommend_popular(
     if not DB_AVAILABLE:
         return {"status": "failed", "message": "DB 연결 없음"}
 
-    conditions = []
-    params: dict = {"lim": limit}
-
-    if category:
-        conditions.append("category = :category")
-        params["category"] = category
-    if gender:
-        conditions.append("(gender = :gender OR gender = '공용')")
-        params["gender"] = gender
-
-    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-
     with _Session() as db:
         rows = db.execute(
-            text(f"""
+            text("""
                 SELECT *,
                        COALESCE(heart_count, 0) * 2 + COALESCE(review_count, 0) AS score
                 FROM products
-                {where}
+                WHERE (:category IS NULL OR category = :category)
+                  AND (:gender   IS NULL OR gender   = :gender OR gender = '공용')
                 ORDER BY score DESC
                 LIMIT :lim
             """),
-            params
+            {"category": category, "gender": gender, "lim": limit}
         ).fetchall()
 
     return {
@@ -317,25 +298,16 @@ def recommend_outfit(
     outfit: dict = {}
     with _Session() as db:
         for cat in paired:
-            conditions = ["category = :category"]
-            params: dict = {"category": cat, "lim": limit}
-
-            if gender:
-                conditions.append("(gender = :gender OR gender = '공용')")
-                params["gender"] = gender
-            if style:
-                conditions.append("style = :style")
-                params["style"] = style
-
-            where = "WHERE " + " AND ".join(conditions)
             rows = db.execute(
-                text(f"""
+                text("""
                     SELECT * FROM products
-                    {where}
+                    WHERE category = :category
+                      AND (:gender IS NULL OR gender = :gender OR gender = '공용')
+                      AND (:style  IS NULL OR style  = :style)
                     ORDER BY COALESCE(heart_count, 0) DESC, RANDOM()
                     LIMIT :lim
                 """),
-                params
+                {"category": cat, "gender": gender, "style": style, "lim": limit}
             ).fetchall()
 
             if rows:
@@ -351,8 +323,8 @@ def recommend_outfit(
 
 @app.get("/recommend/preference")
 def recommend_by_preference(
-    user_id:    str           = Query(..., description="유저 UUID"),
-    limit:      int           = Query(20, ge=1, le=100),
+    user_id: str = Query(..., description="유저 UUID"),
+    limit:   int = Query(20, ge=1, le=100),
 ):
     """
     user_preferences 테이블의 유저 설정값 기반으로 상품을 추천합니다.
@@ -362,14 +334,12 @@ def recommend_by_preference(
         return {"status": "failed", "message": "DB 연결 없음"}
 
     with _Session() as db:
-        # 선호도 조회
         pref = db.execute(
             text("SELECT * FROM user_preferences WHERE user_id = :uid"),
             {"uid": user_id}
         ).fetchone()
 
         if not pref:
-            # fallback: 인기 추천
             rows = db.execute(
                 text("""
                     SELECT * FROM products
@@ -384,7 +354,7 @@ def recommend_by_preference(
                 "products": [dict(r._mapping) for r in rows],
             }
 
-        # 선호도 기반 필터링
+        # 선호도 기반 필터링 — IN 절은 파라미터 바인딩으로 처리
         conditions = []
         params: dict = {"lim": limit}
 

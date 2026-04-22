@@ -1,20 +1,36 @@
 # app/api/posts.py
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status, Request, Query
-from sqlalchemy.orm import Session, joinedload 
-from typing import List, Optional
-import uuid
 import os
-import requests 
+import uuid
+from typing import List, Optional
+
+import requests
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from pydantic import BaseModel
-from sqlalchemy import func, text
+from sqlalchemy import case, func, text, or_
+from sqlalchemy.orm import Session, joinedload
 
-from app.db.session import get_db
+# --- 프로젝트 내부 모듈 ---
 from app.api.deps import get_current_user
-from app.models.models import Post, PostTag, User, Location, Like, Comment, Snap, SnapLike, SnapComment, SnapTag
-
-from fastapi import BackgroundTasks  
-from app.core.notifier import notifier
 from app.core.fcm import send_fcm_notification
+from app.core.notifier import notifier
+from app.db.session import get_db
+from app.schemas import UserPreferenceUpdate
+
+# 모델 임포트 (길어서 괄호로 묶어 가독성 향상)
+from app.models.models import (
+    Comment, 
+    Like, 
+    Location, 
+    Post, 
+    PostTag, 
+    Product, 
+    Snap, 
+    SnapComment, 
+    SnapLike, 
+    SnapTag, 
+    User, 
+    UserPreference
+)
 
 router = APIRouter()
 UPLOAD_DIR = "uploads"
@@ -33,6 +49,14 @@ def get_current_user_optional(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"선택적 인증 처리 중 알림 (비로그인): {e}")
         return None
+
+TAG_FIELDS = ["category", "class_label", "color", "style"]
+
+TAG_FIELDS = ["category", "class_label", "color", "style"]
+
+def format_tag(tag_name: str) -> str:
+    return tag_name.split(":", 1)[-1] if ":" in tag_name else tag_name
+
 
 # ==========================================
 # 1. 게시글 업로드 API & AI 자동 분석
@@ -90,24 +114,22 @@ async def create_fashion_post(
                     ai_data = ai_response.json()
                     
                     if ai_data.get("status") == "success":
-                        new_post.ai_status = "completed" 
-                        
-                        ai_tags = [
-                            ai_data.get("category"), 
-                            ai_data.get("color"), 
-                            ai_data.get("style")
-                        ]
-                        confidence = ai_data.get("confidence", 0.0)
-                        
-                        for tag_name in ai_tags:
-                            if tag_name and tag_name != "unknown":
-                                db_tag = PostTag(
-                                    post_id=new_post.id, 
-                                    tag_name=tag_name, 
-                                    is_ai_generated=True,
-                                    confidence_score=confidence
-                                )
-                                db.add(db_tag)
+                        new_post.ai_status = "completed"
+
+                        for detection in ai_data.get("detections", []):
+                            confidence = detection.get("confidence", 0.0)
+
+                            for field in TAG_FIELDS:
+                                value = detection.get(field)
+                                if value and value != "unknown":
+                                    tag_name = f"{field}:{value}"
+                                    db_tag = PostTag(
+                                        post_id=new_post.id,
+                                        tag_name=tag_name,
+                                        is_ai_generated=True,
+                                        confidence_score=confidence
+                                    )
+                                    db.add(db_tag)
                     else:
                         new_post.ai_status = "failed"
                 else:
@@ -127,8 +149,9 @@ async def create_fashion_post(
             os.remove(file_path)
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # ==========================================
-# 2. 통합 피드 조회 API
+# 2. 통합 피드 조회 API (초개인화 추천 알고리즘 탑재)
 # ==========================================
 @router.get("/")
 def get_fashion_feed(
@@ -143,6 +166,7 @@ def get_fashion_feed(
     current_user: Optional[User] = Depends(get_current_user_optional) 
 ):
     try:
+        # 1. 기본 쿼리 및 연관 데이터 미리 불러오기 (성능 최적화)
         query = db.query(Post).options(
             joinedload(Post.user),
             joinedload(Post.location),
@@ -151,16 +175,19 @@ def get_fashion_feed(
             joinedload(Post.tags)
         )
 
+        # 2. 검색 및 지역 필터링
         if location_id is not None:
             query = query.filter(Post.location_id == location_id)
         if q and q.strip():
             query = query.filter(Post.content.ilike(f"%{q.strip()}%"))
 
+        # 3. 정렬 로직 분기
         if sort_by == "popular":
             query = query.outerjoin(Like).group_by(Post.id).order_by(
                 func.count(Like.id).desc(), 
                 Post.created_at.desc()
             )
+            
         elif sort_by == "nearby" and lat is not None and lng is not None:
             distance_expr = func.sqrt(
                 func.power(Location.latitude - lat, 2) + 
@@ -170,15 +197,76 @@ def get_fashion_feed(
                 distance_expr.asc().nulls_last(), 
                 Post.created_at.desc()
             )
-        # 💡 [핵심 추가] 랜덤 피드 정렬 로직 (무작위로 섞음)
+            
+        # 🚀 [핵심 알고리즘] AI 맞춤 추천 정렬
+        elif sort_by == "recommend":
+            if current_user:
+                pref = db.query(UserPreference).filter(UserPreference.user_id == current_user.id).first()
+                pref_tags = []
+                is_male_preferred = False
+                is_female_preferred = False
+                
+                # 영문 태그 번역기 (AI가 달아주는 태그와 매칭)
+                STYLE_MAPPING = {
+                    "미니멀": "minimal", "스트릿": "street", "캐주얼": "casual",
+                    "빈티지": "vintage", "스포티": "sporty", "프레피": "preppy"
+                }
+                
+                if pref:
+                    if pref.preferred_styles:
+                        for s in pref.preferred_styles.split(','):
+                            s = s.strip()
+                            pref_tags.append(s)
+                            if s in STYLE_MAPPING:
+                                pref_tags.append(STYLE_MAPPING[s]) 
+                                
+                    if pref.preferred_categories:
+                        for c in pref.preferred_categories.split(','):
+                            c = c.strip()
+                            pref_tags.append(c)
+                            # 유저의 성별 선호도 파악
+                            if '남성' in c: is_male_preferred = True
+                            if '여성' in c: is_female_preferred = True
+                
+                if pref_tags:
+                    # 동적 채점 규칙(Rules) 생성
+                    scoring_rules = [
+                        # 규칙 1: 내 취향 태그(스타일/카테고리)와 일치하면 100점 추가
+                        (PostTag.tag_name.in_(pref_tags), 100)
+                    ]
+                    
+                    # 규칙 2: 성별 페널티 (남성옷을 찾는데 여성옷이 나오면 -500점 감점)
+                    if is_male_preferred and not is_female_preferred:
+                        scoring_rules.append((PostTag.tag_name.ilike('%여성%'), -500))
+                    elif is_female_preferred and not is_male_preferred:
+                        scoring_rules.append((PostTag.tag_name.ilike('%남성%'), -500))
+
+                    # 게시물별 총점 계산 서브쿼리
+                    score_subq = db.query(
+                        PostTag.post_id,
+                        func.sum(case(*scoring_rules, else_=0)).label('score')
+                    ).group_by(PostTag.post_id).subquery()
+
+                    # 점수 순으로 피드 정렬 (점수가 없으면 맨 뒤로)
+                    query = query.outerjoin(score_subq, Post.id == score_subq.c.post_id)\
+                                 .order_by(score_subq.c.score.desc().nulls_last(), Post.created_at.desc())
+                else:
+                    # 취향 정보가 빈 문자열이면 랜덤
+                    query = query.order_by(func.random())
+            else:
+                # 비로그인 유저면 랜덤
+                query = query.order_by(func.random())
+                
         elif sort_by == "random":
             query = query.order_by(func.random())
         else:
+            # 기본값 (최신순)
             query = query.order_by(Post.created_at.desc())
 
+        # 4. 데이터베이스 쿼리 실행
         raw_posts = query.offset(skip).limit(limit).all()
 
-        # 파이썬 레벨에서 안전하게 중복을 제거합니다! (순서 유지)
+        # 5. 파이썬 레벨에서 안전하게 중복 제거 (정렬 순서 유지)
         posts = []
         seen_ids = set()
         for p in raw_posts:
@@ -186,6 +274,7 @@ def get_fashion_feed(
                 seen_ids.add(p.id)
                 posts.append(p)
 
+        # 6. 프론트엔드 규격에 맞게 데이터 포장
         results = []
         for post in posts:
             is_liked = False
@@ -205,7 +294,8 @@ def get_fashion_feed(
                 "is_liked": is_liked,
                 "like_count": len(post.likes),
                 "comment_count": len(post.comments),
-                "tags": [f"#{tag.tag_name}" for tag in post.tags] 
+                # ✅ prefix 제거 후 출력 (DB: "color:black" → 출력: "#black")
+                "tags": [f"#{format_tag(tag.tag_name)}" for tag in post.tags]
             })
         
         return results
@@ -230,15 +320,43 @@ def ensure_like(post_id: str, db: Session = Depends(get_db), current_user: User 
 @router.post("/{post_id}/like")
 def toggle_like(post_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     existing_like = db.query(Like).filter(Like.post_id == post_id, Like.user_id == current_user.id).first()
+    
     if existing_like:
         db.delete(existing_like)
         db.commit()
         return {"status": "unliked"}
     else:
+        # 1. 좋아요 DB에 저장
         new_like = Like(post_id=post_id, user_id=current_user.id)
         db.add(new_like)
         db.commit()
 
+        # 💡 2. [추가된 로직] 좋아요 한 게시물의 태그를 분석하여 유저 취향(알고리즘)에 자동 반영
+        post_tags = db.query(PostTag).filter(PostTag.post_id == post_id).all()
+        
+        if post_tags:
+            user_pref = db.query(UserPreference).filter(UserPreference.user_id == current_user.id).first()
+            new_tags = [t.tag_name for t in post_tags]
+            
+            if user_pref:
+                current_styles = user_pref.preferred_styles or ""
+                # 이미 취향 목록에 있는 태그는 제외하고 새로운 것만 필터링
+                filtered_tags = [tag for tag in new_tags if tag not in current_styles]
+                
+                if filtered_tags:
+                    # 기존 태그 뒤에 콤마(,)로 연결하여 저장
+                    user_pref.preferred_styles = (current_styles + "," + ",".join(filtered_tags)).strip(",")
+                    db.commit()
+            else:
+                # 온보딩을 건너뛰어서 취향 테이블이 아예 없는 유저라면 새로 생성해 줍니다!
+                new_pref = UserPreference(
+                    user_id=current_user.id,
+                    preferred_styles=",".join(new_tags)
+                )
+                db.add(new_pref)
+                db.commit()
+
+        # 3. 기존 알림 전송 기능 유지
         post = db.query(Post).filter(Post.id == post_id).first()
         if post and post.user_id != current_user.id:
             target_user = db.query(User).filter(User.id == post.user_id).first()
@@ -563,7 +681,7 @@ def delete_snap(snap_id: str, db: Session = Depends(get_db), current_user: User 
     return {"status": "success"}
 
 # ==========================================
-# 🤖 8. [새로 추가됨] AI 추천 피드 (무한 스크롤)
+# 🤖 8. AI 추천 피드 (하이브리드 필터링 적용 - 성별은 차단, 스타일은 점수)
 # ==========================================
 @router.get("/recommendations/feed")
 def get_recommended_feed(
@@ -573,40 +691,79 @@ def get_recommended_feed(
     db: Session = Depends(get_db)
 ):
     offset = (page - 1) * size
-    
-    # 기본 점수: 인기도 (하트 1.5점, 리뷰 1.0점)
-    base_score_logic = "COALESCE(heart_count, 0) * 1.5 + COALESCE(review_count, 0) * 1.0"
-    preference_logic = "0" 
-    
-    # 로그인한 유저라면 취향 데이터베이스를 조회하여 가산점 부여
+    query = db.query(Product)
+
     if current_user:
-        pref = db.execute(
-            text("SELECT * FROM user_preferences WHERE user_id = :uid"), 
-            {"uid": str(current_user.id)}
-        ).fetchone()
+        pref = db.query(UserPreference).filter(UserPreference.user_id == current_user.id).first()
         
         if pref:
-            # SQLAlchemy 2.0 Row 매핑 안전 처리
-            pref_dict = pref._mapping if hasattr(pref, '_mapping') else dict(pref)
-            
-            styles = pref_dict.get('preferred_styles') or ""
-            categories = pref_dict.get('preferred_categories') or ""
-            
-            preference_logic = f"""
-                (CASE WHEN '{styles}' LIKE '%' || style || '%' THEN 50 ELSE 0 END) +
-                (CASE WHEN '{categories}' LIKE '%' || category || '%' THEN 50 ELSE 0 END)
-            """
+            categories_str = pref.preferred_categories or ""
+            styles_str = pref.preferred_styles or ""
+            category_list = [c.strip() for c in categories_str.split(',') if c.strip()]
+            style_list = [s.strip() for s in styles_str.split(',') if s.strip()]
 
-    # 최종 쿼리: 기본 점수와 취향 점수를 합산하여 내림차순 정렬 (무한 스크롤 적용)
-    query = text(f"""
-        SELECT *, 
-               ({base_score_logic}) + ({preference_logic}) AS total_score
-        FROM products
-        ORDER BY total_score DESC, created_at DESC
-        LIMIT :limit OFFSET :offset
-    """)
+            is_male = any('남성' in c for c in category_list)
+            is_female = any('여성' in c for c in category_list)
+
+            # 🚀 [포인트 1] 성별 가중치 (차단 대신 '초고득점' 부여)
+            # 차단(filter) 대신 점수를 아주 크게 주어 우선 노출하되, 피드가 끊기지 않게 합니다.
+            gender_match_score = 0
+            if is_male and not is_female:
+                gender_cond = or_(
+                    Product.gender.ilike('%남성%'), Product.gender.ilike('M%'),
+                    Product.category.ilike('%남성%'), Product.class_label.ilike('%남성%')
+                )
+                gender_match_score = case((gender_cond, 10000), else_=0)
+            elif is_female and not is_male:
+                gender_cond = or_(
+                    Product.gender.ilike('%여성%'), Product.gender.ilike('F%'),
+                    Product.category.ilike('%여성%'), Product.class_label.ilike('%여성%')
+                )
+                gender_match_score = case((gender_cond, 10000), else_=0)
+
+            # 🚀 [포인트 2] 카테고리 가중치 (두 번째 우선순위)
+            cat_match_score = 0
+            if category_list:
+                cat_cond = or_(
+                    *(Product.category.ilike(f"%{c}%") for c in category_list),
+                    *(Product.class_label.ilike(f"%{c}%") for c in category_list)
+                )
+                cat_match_score = case((cat_cond, 5000), else_=0)
+
+            # 🚀 [포인트 3] 스타일 가중치 (세 번째 우선순위)
+            STYLE_MAPPING = {"미니멀": "minimal", "스트릿": "street", "캐주얼": "casual", "빈티지": "vintage", "스포티": "sporty", "프레피": "preppy"}
+            mapped_styles = []
+            for s in style_list:
+                mapped_styles.append(s); [mapped_styles.append(STYLE_MAPPING[s]) for s in [s] if s in STYLE_MAPPING]
+            
+            style_match_score = 0
+            if mapped_styles:
+                style_cond = or_(*(Product.style.ilike(f"%{s}%") for s in mapped_styles))
+                style_match_score = case((style_cond, 1000), else_=0)
+
+            # 기본 인기도 (마지막 동점자 처리용)
+            base_pop_score = func.coalesce(Product.heart_count, 0) * 0.01
+
+            # 🚀 [포인트 4] 다중 정렬 (Multi-level Order)
+            # 1. 성별 맞춤 -> 2. 카테고리 맞춤 -> 3. 스타일 맞춤 -> 4. 인기도 순
+            query = query.order_by(
+                gender_match_score.desc(),
+                cat_match_score.desc(),
+                style_match_score.desc(),
+                base_pop_score.desc(),
+                Product.created_at.desc()
+            )
+        else:
+            query = query.order_by(Product.heart_count.desc())
+    else:
+        query = query.order_by(Product.heart_count.desc())
+
+    products = query.offset(offset).limit(size).all()
     
-    products = db.execute(query, {"limit": size, "offset": offset}).fetchall()
-    
-    # 딕셔너리 형태로 변환하여 반환
-    return [dict(p._mapping if hasattr(p, '_mapping') else dict(p)) for p in products]
+    return [{
+        "id": p.id, "filename": p.filename, "brand": p.brand, "product_name": p.product_name,
+        "class_label": p.class_label, "gender": p.gender, "category": p.category,
+        "color": p.color, "style": p.style, "price": p.price,
+        "review_count": p.review_count, "heart_count": p.heart_count,
+        "image_url": p.image_url, "created_at": p.created_at.isoformat() if p.created_at else None
+    } for p in products]
