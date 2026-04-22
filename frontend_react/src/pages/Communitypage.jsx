@@ -165,13 +165,21 @@ export default function CommunityPage() {
     );
   }, [t]);
 
-  const handleOpenPostModal = useCallback(() => {
+  // 🚀 [핵심 추가] 현재 화면 상태에 따라 스마트하게 분기하는 POST 핸들러
+  const handleSmartPostClick = useCallback(() => {
     if (!isLoggedIn) {
       openAuthModal('login');
       return;
     }
-    setPostModalOpen(true);
-  }, [isLoggedIn, openAuthModal]);
+    
+    // 현재 스냅 화면을 보고 있다면 스냅 업로드 창으로 즉시 이동
+    if (activeView === 'snap') {
+      handleNavigate('snap-upload');
+    } else {
+      // 그 외의 화면(홈 등)에서는 일반 POST 모달 띄우기
+      setPostModalOpen(true);
+    }
+  }, [isLoggedIn, activeView, handleNavigate, openAuthModal]);
 
   const handlePosted = useCallback(() => {
     setActiveView('home');
@@ -287,16 +295,18 @@ export default function CommunityPage() {
 
         <RightSidebar 
           activeView={activeView}
-          onOpenPostModal={handleOpenPostModal}
+          onOpenPostModal={handleSmartPostClick} // 💡 스마트 핸들러 적용
           onOpenSnapUpload={() => handleNavigate('snap-upload')} 
         />
       </div>
 
+      {/* 모바일 하단 네비게이션 */}
       <MobileNav
         onNavigate={handleNavigate}
         onSort={handleSort}
         onNearby={handleNearby}
-        onOpenPost={handleOpenPostModal}
+        onOpenPost={handleSmartPostClick} // 💡 스마트 핸들러 적용
+        currentSort={sort} 
       />
 
       {/* ===== 공통 모달 레이어 ===== */}

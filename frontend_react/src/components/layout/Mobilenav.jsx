@@ -2,16 +2,26 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-export default function MobileNav({ onNavigate, onSort, onNearby, onOpenPost }) {
+export default function MobileNav({ onNavigate, onSort, onNearby, onOpenPost, currentSort }) {
   const { t } = useTranslation();
 
   return (
     <nav className="mobile-nav">
-      {/* 1. 홈 */}
-      <button type="button" onClick={() => onNavigate('home')}>
-        <span>⌂</span>
-        {t('mobileNav.home')}
-      </button>
+      
+      {/* 💡 1. 홈 ↔ AI 추천 스위치 버튼 */}
+      {currentSort === 'recommend' ? (
+        // 현재 추천 피드를 보고 있다면 -> [🏠 일반 홈]으로 가는 버튼 표시
+        <button type="button" onClick={() => onSort('latest')} style={{ color: 'var(--rust)' }}>
+          <span style={{ fontSize: '20px', fontWeight: 'bold' }}>🏠</span>
+          {t('mobileNav.home', '홈')}
+        </button>
+      ) : (
+        // 현재 일반 홈을 보고 있다면 -> [🤖 AI 추천]으로 가는 버튼 표시
+        <button type="button" onClick={() => onSort('recommend')}>
+          <span style={{ fontSize: '20px' }}>🤖</span>
+          {t('mobileNav.aiRecommend', '추천')}
+        </button>
+      )}
 
       {/* 2. 메시지 */}
       <button type="button" onClick={() => onNavigate('messages')}>
@@ -19,7 +29,7 @@ export default function MobileNav({ onNavigate, onSort, onNearby, onOpenPost }) 
         {t('mobileNav.messages')}
       </button>
 
-      {/* 💡 3. 패션 평가 */}
+      {/* 3. 패션 평가 */}
       <button type="button" onClick={() => onNavigate('fashion-eval')}>
         <span>◇</span>
         {t('mobileNav.fashionEval')}
@@ -31,10 +41,9 @@ export default function MobileNav({ onNavigate, onSort, onNearby, onOpenPost }) 
         {t('mobileNav.post')}
       </button>
 
-      {/* 🎬 5. 스냅 (기존 '주변' 버튼 대체) */}
+      {/* 🎬 5. 스냅 */}
       <button type="button" onClick={() => onNavigate('snap')}>
         <span>🎬</span>
-        {/* 다국어 사전에 'mobileNav.snap'이 없더라도 '스냅'으로 출력되도록 폴백 설정 */}
         {t('mobileNav.snap', '스냅')}
       </button>
 
