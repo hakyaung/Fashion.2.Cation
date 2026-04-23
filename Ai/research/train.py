@@ -8,13 +8,39 @@ Fashion.2.Cation — YOLOv8 Detection 학습
 """
 
 import os
+import json
+import random
 import shutil
 import platform
 import ssl
 
+import numpy as np
+import torch
+
 # Mac SSL 인증 우회
 if platform.system() == "Darwin":
     ssl._create_default_https_context = ssl._create_unverified_context
+
+# ────────────────────────────────────────────────
+# 재현성을 위한 시드 고정
+# ────────────────────────────────────────────────
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(SEED)
+
+
+# ────────────────────────────────────────────────
+# 디바이스 자동 감지 (CUDA → MPS → CPU 순 폴백)
+# ────────────────────────────────────────────────
+def _resolve_device():
+    if torch.cuda.is_available():
+        return 0  # CUDA GPU 인덱스
+    if platform.system() == "Darwin" and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
 
 # ────────────────────────────────────────────────
 # 경로 설정
@@ -51,21 +77,38 @@ results = model.train(
     imgsz     = 224,          # 입력 이미지 크기
     batch     = 32,           # 배치 크기 (GPU 메모리 부족 시 16으로 줄이기)
     patience  = 10,           # Early stopping (10 에폭 동안 개선 없으면 중단)
-    device    = "mps" if platform.system() == "Darwin" else "0",  # Mac: mps / GPU: 0 / CPU: cpu
+    device    = _resolve_device(),  # CUDA → MPS → CPU 자동 폴백
     project   = os.path.join(BASE_DIR, "runs", "detect"),
     name      = "fashion_yolo",
     exist_ok  = True,
     verbose   = True,
+    seed      = SEED,         # ultralytics 내부 시드도 고정
 )
 
 # ────────────────────────────────────────────────
-# 검증 (Validation)
+# 검증 (Validation) + 결과를 JSON 으로 저장
 # ────────────────────────────────────────────────
 print()
 print("📊 검증 중...")
 metrics = model.val()
 print(f"  mAP50   : {metrics.box.map50:.4f}")
 print(f"  mAP50-95: {metrics.box.map:.4f}")
+
+metrics_path = os.path.join(BASE_DIR, "runs", "detect", "fashion_yolo", "val_metrics.json")
+try:
+    with open(metrics_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "mAP50":    float(metrics.box.map50),
+                "mAP50_95": float(metrics.box.map),
+                "seed":     SEED,
+                "device":   str(_resolve_device()),
+            },
+            f, ensure_ascii=False, indent=2,
+        )
+    print(f"  📝 검증 지표 저장: {metrics_path}")
+except Exception as e:
+    print(f"  ⚠️  지표 저장 실패: {e}")
 
 # ────────────────────────────────────────────────
 # 배포 폴더에 모델 복사
