@@ -209,7 +209,7 @@ def _split_class_label(class_label: str) -> tuple[str | None, str | None]:
 def _run_yolo(image_bytes: bytes) -> tuple[list, dict | None]:
     """YOLOv8 추론 실행. (detections 리스트, best 딕셔너리 or None) 반환."""
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    results = model.predict(source=image, imgsz=224, conf=0.25, verbose=False, device=device)
+    results = model.predict(source=image, imgsz=640, conf=0.15, verbose=False, device=device)
     boxes = results[0].boxes
 
     if len(boxes) == 0:
