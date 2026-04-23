@@ -1,10 +1,18 @@
-// frontend_react/src/components/snaps/SnapItem.jsx
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../../context/Authcontext';
 import { ref, deleteObject } from "firebase/storage";
+import { getAuth, signInAnonymously } from 'firebase/auth'; // ✅ 추가
 import { storage } from '../../firebase';
 import { preloadVideo, getCachedUrl } from '../../utils/videoPreloader';
 import './SnapFeed.css';
+
+// ✅ Firebase Auth 보장 헬퍼 — 이미 로그인돼 있으면 아무것도 안 함
+const ensureFirebaseAuth = async () => {
+  const auth = getAuth();
+  if (!auth.currentUser) {
+    await signInAnonymously(auth);
+  }
+};
 
 export default function SnapItem({
   snap,
@@ -12,7 +20,7 @@ export default function SnapItem({
   onCommentOpen,
   onEditOpen,
   onDeleteSnap,
-  onBecomeActive, // 🚀 [신규] 내가 활성화됐을 때 SnapFeed에 알림 → 다음 영상 선제 다운로드
+  onBecomeActive,
 }) {
   const { currentUserId } = useAuth();
   const videoRef = useRef(null);
@@ -29,7 +37,6 @@ export default function SnapItem({
     ? `https://${currentHost}`
     : `http://${currentHost}:8000`;
 
-  // 🚀 [핵심] 영상 src 설정 함수 — 캐시에 Blob이 있으면 즉시, 없으면 원본 URL로 스트리밍
   const applyVideoSrc = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -37,19 +44,16 @@ export default function SnapItem({
     const cachedBlobUrl = getCachedUrl(snap.video_url);
     const targetSrc = cachedBlobUrl ?? snap.video_url;
 
-    // 이미 같은 src면 건너뜀 (불필요한 reload 방지)
     if (video.src === targetSrc) return;
 
     video.src = targetSrc;
     setIsVideoLoading(true);
 
-    // Blob이 없으면 지금 백그라운드에서 캐시 시작 (다음 방문 시 즉시 재생)
     if (!cachedBlobUrl) {
       preloadVideo(snap.video_url);
     }
   }, [snap.video_url]);
 
-  // 🚀 [핵심] IntersectionObserver: rootMargin으로 뷰포트 진입 전부터 미리 로딩
   useEffect(() => {
     const video = videoRef.current;
     const container = containerRef.current;
@@ -61,18 +65,14 @@ export default function SnapItem({
           const ratio = entry.intersectionRatio;
 
           if (ratio >= 0.6) {
-            // ✅ 화면 주인공: src 설정 + 재생 + SnapFeed에 "내가 활성" 알림
             applyVideoSrc();
             video?.play().catch(() => {});
             onBecomeActive?.(snap.id);
 
           } else if (entry.isIntersecting) {
-            // 🔄 rootMargin 범위 안에 들어옴 (아직 화면 밖):
-            // src만 설정해 브라우저 프리로드 시작. 재생은 하지 않음.
             applyVideoSrc();
 
           } else {
-            // ❌ 완전히 벗어남: 정지
             video?.pause();
             if (video) video.currentTime = 0;
           }
@@ -80,8 +80,6 @@ export default function SnapItem({
       },
       {
         threshold: [0, 0.6],
-        // 🚀 핵심 설정: 위아래 100vh 밖에서부터 감지 시작
-        // → 현재 영상 재생 중에 다음 영상이 이미 로드 준비 시작
         rootMargin: '100% 0px',
       }
     );
@@ -90,7 +88,6 @@ export default function SnapItem({
     return () => observer.disconnect();
   }, [applyVideoSrc, snap.id, onBecomeActive]);
 
-  // 영상 재생 가능해지면 로딩 스피너 제거 + 재생
   const handleCanPlay = useCallback(() => {
     setIsVideoLoading(false);
     videoRef.current?.play().catch(() => {});
@@ -124,13 +121,14 @@ export default function SnapItem({
     onCommentOpen?.(snap.id, snap.user_id, 'snap');
   };
 
-  // 🗑️ 삭제
+  // 🗑️ 삭제 — ✅ ensureFirebaseAuth 추가
   const handleDelete = async (e) => {
     e.stopPropagation();
     if (!window.confirm("이 스냅 영상을 삭제하시겠습니까?")) return;
 
     try {
       if (snap.video_url?.includes('firebasestorage')) {
+        await ensureFirebaseAuth(); // ✅ 삭제 전 Firebase Auth 보장
         const fileRef = ref(storage, snap.video_url);
         await deleteObject(fileRef).catch(err => {
           if (err.code !== 'storage/object-not-found') throw err;
@@ -170,14 +168,13 @@ export default function SnapItem({
   return (
     <div className="reels-item-container" ref={containerRef}>
 
-      {/* 메인 비디오 — src는 JS로 직접 제어 (React 상태 우회 → 리렌더링 0) */}
       <video
         ref={videoRef}
         className="reels-video"
         loop
         playsInline
         muted
-        preload="auto"           // 🚀 src 설정되는 순간 최대한 빨리 버퍼링
+        preload="auto"
         onPlaying={() => setIsVideoLoading(false)}
         onCanPlay={handleCanPlay}
         onClick={() => {
@@ -190,7 +187,6 @@ export default function SnapItem({
 
       <div className="reels-overlay-bottom" />
 
-      {/* 좌측 하단: 유저 정보, 본문, 태그 */}
       <div className="reels-info-section" style={{ bottom: '80px' }}>
         <div className="reels-user-row" onClick={() => onProfileClick?.(snap.user_id)}>
           <img
@@ -224,7 +220,6 @@ export default function SnapItem({
         </div>
       </div>
 
-      {/* 우측 세로 액션 버튼 */}
       <div className="reels-actions-column" style={{ bottom: '90px', gap: '14px' }}>
         <div className="reels-action-btn" onClick={handleLike}>
           <div className={`reels-icon-circle ${isLiked ? 'liked' : ''}`} style={{ fontSize: '24px' }}>
