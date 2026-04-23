@@ -199,6 +199,29 @@ export default function FeedView({
   }, []);
 
   // ==========================================
+  // 🚀 [핵심 추가] CommentModal의 '비상벨(CustomEvent)' 수신기
+  // 부모가 함수를 안 넘겨줘서 끊긴 연결을 여기서 강제로 캐치하여 즉각 반영합니다.
+  // ==========================================
+  useEffect(() => {
+    const handleCommentUpdate = (event) => {
+      const { postId, action } = event.detail;
+      if (action === 'add') {
+        handleCommentCountIncrease(postId);
+      } else if (action === 'remove') {
+        handleCommentCountDecrease(postId);
+      }
+    };
+
+    window.addEventListener('commentUpdateTrigger', handleCommentUpdate);
+
+    // 컴포넌트가 꺼질 때 리스너 안전하게 제거 (메모리 누수 방지)
+    return () => {
+      window.removeEventListener('commentUpdateTrigger', handleCommentUpdate);
+    };
+  }, [handleCommentCountIncrease, handleCommentCountDecrease]);
+  // ==========================================
+
+  // ==========================================
   // 삭제 후 피드에서 제거
   // ==========================================
   const handleDeleted = useCallback((postId) => {

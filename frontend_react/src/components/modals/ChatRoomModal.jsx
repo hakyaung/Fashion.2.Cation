@@ -1,11 +1,11 @@
+// frontend_react/src/components/modals/ChatRoomModal.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next'; // 💡 다국어 훅 추가
-// 💡 markChatAsRead 함수를 포함한 API들 임포트
+import { useTranslation } from 'react-i18next'; 
 import { API_URL, getOrCreateChatRoom, fetchChatHistory, markChatAsRead } from '../../api/api';
-import TranslatableText from '../common/TranslatableText'; // 💡 번역 컴포넌트 추가
+import TranslatableText from '../common/TranslatableText'; 
 
 export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUser }) {
-  const { t } = useTranslation(); // 💡 다국어 함수 가져오기
+  const { t } = useTranslation(); 
   const [roomId, setRoomId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -30,25 +30,26 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
 
         // 1. 기존 채팅 내역 불러오기
         const history = await fetchChatHistory(currentRoomId);
-        if (isMounted) setMessages(history);
+        
+        // 🚀 [추가] DB 업데이트로 인해 순서가 뒤틀리는 현상을 막기 위한 프론트엔드 강제 정렬 로직
+        const sortedHistory = history.sort((a, b) => {
+          // id가 있으면 id 순서대로, 없으면 시간 순서대로 안전하게 정렬합니다.
+          return (a.id && b.id) ? a.id - b.id : new Date(a.created_at) - new Date(b.created_at);
+        });
 
-        // 2. 채팅방에 들어왔으므로 지금까지 쌓인 메시지를 모두 '읽음' 처리합니다.
+        if (isMounted) setMessages(sortedHistory);
+
+        // 2. 채팅방 진입 시 읽음 처리
         await markChatAsRead(currentRoomId, currentUserId);
 
-        // ==========================================
-        // 💡 [핵심 로직 완벽 복구 및 유지] 
-        // 환경(Local vs HTTPS 배포) 자동 감지 무전기 주소 세팅
-        // ==========================================
         const isLocal = window.location.hostname === 'localhost';
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        // 배포(HTTPS) 환경이면 포트 없이 도메인만, 로컬이면 8000 포트를 붙여서 사용합니다.
         const host = isLocal ? 'localhost:8000' : window.location.host; 
         
         const wsUrl = `${wsProtocol}//${host}/api/v1/chat/ws/${currentRoomId}/${currentUserId}`;
 
         console.log("🔗 Connecting to:", wsUrl);
 
-        // 무전기 연결하기
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
@@ -58,20 +59,12 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
           if (isMounted) {
             const data = JSON.parse(event.data);
             
-            // 신호 종류에 따른 실시간 읽음 처리
-            if (data.type === 'read_receipt') {
-              // 상대방이 내 메시지를 읽었다는 신호가 오면, 내 화면의 모든 '안 읽음'을 '읽음'으로 변경
-              if (String(data.reader_id) !== String(currentUserId)) {
-                setMessages((prev) => prev.map(m => ({ ...m, is_read: true })));
-              }
-            } else {
-              // 일반 메시지가 온 경우 (새 메시지 수신)
-              setMessages((prev) => [...prev, data]);
-              
-              // 내가 지금 채팅방을 켜놓고 보고 있는데 상대가 메시지를 보냈다면, 즉시 읽음 처리 API를 호출
-              if (String(data.sender_id) !== String(currentUserId)) {
-                markChatAsRead(currentRoomId, currentUserId);
-              }
+            // 💡 백엔드가 JSON 시스템 신호를 구별하지 못하므로, 무조건 새 메시지로 처리
+            setMessages((prev) => [...prev, data]);
+            
+            // 내가 채팅방을 보고 있을 때 새 메시지가 오면 즉시 DB 읽음 처리
+            if (String(data.sender_id) !== String(currentUserId)) {
+              markChatAsRead(currentRoomId, currentUserId);
             }
           }
         };
@@ -94,6 +87,37 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
     };
   }, [isOpen, targetUser, currentUserId]);
 
+  // ==========================================
+  // 🚀 [수정] 닌자 동기화 (F5 없이 자동 읽음 처리 & 순서 꼬임 완벽 방어)
+  // ==========================================
+  useEffect(() => {
+    if (!roomId || !isOpen) return;
+
+    const syncInterval = setInterval(async () => {
+      try {
+        const history = await fetchChatHistory(roomId);
+        
+        // 🚀 [추가] 백그라운드에서 가져온 데이터도 무조건 시간순/ID순으로 재정렬
+        const sortedHistory = history.sort((a, b) => {
+          return (a.id && b.id) ? a.id - b.id : new Date(a.created_at) - new Date(b.created_at);
+        });
+        
+        setMessages((prev) => {
+          // 상태가 이전과 완전히 동일하면 업데이트하지 않음 (스크롤 튀는 현상 방지)
+          if (JSON.stringify(prev) === JSON.stringify(sortedHistory)) {
+            return prev;
+          }
+          return sortedHistory;
+        });
+      } catch (error) {
+        console.error("채팅 동기화 실패 (조용히 무시)", error);
+      }
+    }, 2000); 
+
+    return () => clearInterval(syncInterval);
+  }, [roomId, isOpen]);
+  // ==========================================
+
   // 메시지 업데이트 시 스크롤 하단 고정
   useEffect(() => {
     scrollToBottom();
@@ -105,10 +129,11 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
     if (!inputMessage.trim() || !wsRef.current) return;
 
     if (wsRef.current.readyState === WebSocket.OPEN) {
+      // 💡 백엔드 DB 오염을 막기 위해 JSON이 아닌 순수 텍스트만 보냅니다.
       wsRef.current.send(inputMessage);
       setInputMessage(''); 
     } else {
-      alert(t('chat.disconnect')); // 💡 다국어 적용
+      alert(t('chat.disconnect')); 
     }
   };
 
@@ -136,7 +161,6 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
           backgroundColor: '#f9f9f9' 
         }}>
           <div style={{ fontWeight: 'bold', fontSize: '16px' }}>
-            {/* 💡 다국어 적용 */}
             {t('chat.headerName', { name: targetUser.nickname })}
           </div>
           <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>&times;</button>
@@ -167,7 +191,6 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
                   maxWidth: '75%' 
                 }}>
                   
-                  {/* 내가 보낸 메시지인 경우 말풍선 왼쪽에 '읽음/안 읽음' 표시 */}
                   {isMe && (
                     <span style={{ 
                       fontSize: '11px', 
@@ -176,12 +199,10 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
                       fontWeight: msg.is_read ? 'normal' : 'bold',
                       marginBottom: '2px'
                     }}>
-                      {/* 💡 다국어 적용 */}
                       {msg.is_read ? t('chat.read') : t('chat.unread')}
                     </span>
                   )}
 
-                  {/* 말풍선 본체 */}
                   <div style={{
                     padding: '10px 14px',
                     borderRadius: isMe ? '16px 16px 0 16px' : '16px 16px 16px 0',
@@ -192,7 +213,6 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
                     boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                     wordBreak: 'break-word'
                   }}>
-                    {/* 💡 번역 컴포넌트 적용 (내가 보낸 메시지는 invert 속성으로 말풍선 색상 맞춤) */}
                     <TranslatableText text={msg.content} compact invert={isMe} />
                   </div>
 
@@ -215,7 +235,7 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
             type="text" 
             value={inputMessage} 
             onChange={(e) => setInputMessage(e.target.value)} 
-            placeholder={t('chat.placeholder')} // 💡 다국어 적용
+            placeholder={t('chat.placeholder')} 
             style={{ 
               flex: 1, 
               padding: '12px 18px', 
@@ -239,7 +259,7 @@ export default function ChatRoomModal({ isOpen, onClose, currentUserId, targetUs
               transition: 'all 0.2s'
             }}
           >
-            {t('chat.send')} {/* 💡 다국어 적용 */}
+            {t('chat.send')} 
           </button>
         </form>
       </div>

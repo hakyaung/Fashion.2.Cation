@@ -119,6 +119,8 @@ async def create_fashion_post(
 
                             for field in TAG_FIELDS:
                                 value = detection.get(field)
+                                 # 모든 값 출력 (null 포함)
+                                print(f"[AI RAW] field={field}, value={value}")
                                 if value and value != "unknown":
                                     tag_name = f"{field}:{value}"
                                     db_tag = PostTag(

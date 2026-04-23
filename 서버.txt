@@ -26,6 +26,9 @@ cd frontend_react
 - docker 패션 AI
 cd Ai/deploy
 pip install -r requirements.txt  //필요한 라이브러리 설치
-python ai_server.py //python 실행
+// 종료
+sudo fuser -k 8001/tcp 
+//python 실행
+python ai_server.py
 //꺼지지 않게 실행
 nohup python3 ai_server.py > server.log 2>&1 &
