@@ -24,8 +24,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY deploy/ai_server.py .
 COPY deploy/products_table.sql .
 
-# 6. 학습된 모델
+# 6. 학습된 모델 (YOLO 디텍터 + 색상/스타일 분류기)
 COPY deploy/fashion_yolo.pt .
+COPY deploy/fashion_attr.pt .
 
 # 7. 라벨 맵 (research 폴더에서 복사)
 #    label_maps.json 이 없으면 모델 내장 클래스명을 사용합니다
