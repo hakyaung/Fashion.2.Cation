@@ -380,3 +380,31 @@ export const markChatAsRead = async (roomId, currentUserId) => {
     console.error(error);
   }
 };
+
+// 1. 특정 사용자의 하이라이트 목록을 불러오는 API (GET)
+export const fetchUserHighlights = async (userId) => {
+  const response = await fetch(`${API_URL}/users/${userId}/highlights`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('token')}` // 로그인 토큰
+    }
+  });
+  if (!response.ok) throw new Error('하이라이트를 불러오는데 실패했습니다.');
+  return await response.json();
+};
+
+// 2. 새로운 하이라이트를 생성하는 API (POST)
+export const createHighlightApi = async (formData) => {
+  const response = await fetch(`${API_URL}/highlights`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('token')}`
+      // 🚨 중요: FormData를 보낼 때는 'Content-Type': 'application/json'을 적지 않습니다!
+      // 브라우저가 알아서 'multipart/form-data'로 설정하고 경계(Boundary)값을 지정해 줍니다.
+    },
+    body: formData, // JSON.stringify를 하지 않고 formData 객체 자체를 보냅니다.
+  });
+  
+  if (!response.ok) throw new Error('하이라이트 생성에 실패했습니다.');
+  return await response.json();
+};

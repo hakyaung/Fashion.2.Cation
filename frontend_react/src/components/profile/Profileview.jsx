@@ -14,6 +14,12 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
   // const [isChatOpen, setIsChatOpen] = useState(false); 💡 중앙 관리를 위해 제거
   const [isFollowing, setIsFollowing] = useState(false); 
 
+  const [highlights, setHighlights] = useState([]); // 서버에서 불러온 하이라이트 목록
+  const [highlightModalOpen, setHighlightModalOpen] = useState(false); // 하이라이트 추가 모달 상태
+  const [newHighlightName, setNewHighlightName] = useState(''); // 새 하이라이트 이름
+  const [newHighlightImage, setNewHighlightImage] = useState(null); // 새 하이라이트 이미지 파일
+  const [newHighlightPreview, setNewHighlightPreview] = useState(null); // 새 하이라이트 이미지 미리보기
+
   const getFullImageUrl = (url) => {
     if (!url) return "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80";
     return url.startsWith('http') ? url : `${API_URL}${url}`;
@@ -25,9 +31,10 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
 
     setLoading(true);
     try {
-      const [allPostsData, profileData] = await Promise.all([
+      const [allPostsData, profileData, highlightsData] = await Promise.all([
         fetchMyPosts(),
-        fetchUserProfile(idToFetch)
+        fetchUserProfile(idToFetch),
+        fetchUserHighlights(idToFetch) // 👈 새로 추가된 API 함수
       ]);
 
       const userOnlyPosts = allPostsData.filter((post) => {
@@ -38,8 +45,12 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
       setPosts(userOnlyPosts);
       setProfile(profileData);
       setIsFollowing(profileData.is_following); 
+
+      // 💡 여기서 하이라이트 상태를 업데이트해줍니다.
+      setHighlights(highlightsData);
+      
     } catch (err) {
-      console.error('프로필 로드 실패', err);
+      console.error('데이터 로드 실패', err);
     } finally {
       setLoading(false);
     }
@@ -60,6 +71,50 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
       loadData();
     } catch (err) {
       alert("팔로우 처리 중 오류가 발생했습니다.");
+    }
+  };
+
+  // 💡 하이라이트 이미지 선택 핸들러
+  const handleHighlightImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setNewHighlightImage(file);
+      setNewHighlightPreview(URL.createObjectURL(file));
+    }
+  };
+
+  // 💡 하이라이트 저장 핸들러
+  const handleSaveHighlight = async () => {
+    if (!newHighlightName.trim()) {
+      alert("하이라이트 이름을 입력해주세요.");
+      return;
+    }
+    if (!newHighlightImage) {
+      alert("하이라이트 이미지를 선택해주세요.");
+      return;
+    }
+
+    try {
+      // 💡 FormData를 생성하여 이미지 파일과 텍스트 데이터를 담습니다.
+      const formData = new FormData();
+      formData.append('image', newHighlightImage); // File 객체 추가
+      formData.append('name', newHighlightName);   // 텍스트(이름) 추가
+
+      // 💡 API를 호출하여 서버로 전송합니다.
+      await createHighlightApi(formData);
+
+      // 성공적으로 서버에 저장되었다면, 화면을 최신 상태로 새로고침합니다.
+      alert("하이라이트가 추가되었습니다.");
+      loadData(); // 서버에서 새로 추가된 데이터를 포함해 다시 불러옴
+
+      // 모달 닫기 및 입력값 초기화
+      setHighlightModalOpen(false);
+      setNewHighlightName('');
+      setNewHighlightImage(null);
+      setNewHighlightPreview(null);
+    } catch (err) {
+      console.error(err);
+      alert("하이라이트 저장 중 오류가 발생했습니다.");
     }
   };
 
@@ -127,14 +182,33 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
         </div>
       </div>
 
-      {/* 하이라이트 */}
-      <div className="profile-highlights">
-        <div className="highlight-item"><div className="highlight-circle"></div><span>OOTD</span></div>
-        <div className="highlight-item"><div className="highlight-circle"></div><span>Cafe</span></div>
-        <div className="highlight-item">
-          <div className="highlight-circle" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: 'var(--rust)' }}>+</div>
-          <span>신규</span>
-        </div>
+      {/* 💡 수정된 동적 하이라이트 섹션 */}
+      <div className="profile-highlights" style={{ display: 'flex', gap: '15px', padding: '20px 0', overflowX: 'auto' }}>
+        {highlights.map((highlight) => (
+          <div key={highlight.id} className="highlight-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
+            <div 
+              className="highlight-circle" 
+              style={{ 
+                width: '64px', 
+                height: '64px', 
+                borderRadius: '50%', 
+                border: '1px solid #ddd',
+                backgroundImage: `url(${highlight.image_url})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+              }}
+            ></div>
+            <span style={{ fontSize: '12px', marginTop: '5px' }}>{highlight.name}</span>
+          </div>
+        ))}
+
+        {/* 본인 프로필일 때만 '신규' 버튼 표시 */}
+        {isMyProfile && (
+          <div className="highlight-item" onClick={() => setHighlightModalOpen(true)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
+            <div className="highlight-circle" style={{ width: '64px', height: '64px', borderRadius: '50%', border: '1px solid #ddd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: 'var(--rust)' }}>+</div>
+            <span style={{ fontSize: '12px', marginTop: '5px' }}>신규</span>
+          </div>
+        )}
       </div>
 
       <div className="profile-tabs">
@@ -175,6 +249,51 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
       />
 
       {/* 💡 ChatRoomModal은 이제 여기서 직접 렌더링하지 않고 CommunityPage에서 한 번에 관리합니다. */}
+
+      {/* 💡 신규 하이라이트 추가 모달 */}
+      {highlightModalOpen && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div className="modal-content" style={{ backgroundColor: 'white', padding: '20px', borderRadius: '10px', width: '300px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <h3 style={{ margin: 0, textAlign: 'center' }}>새 하이라이트</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+              <label 
+                htmlFor="highlight-image-upload" 
+                style={{ 
+                  width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', border: '1px solid #ddd'
+                }}
+              >
+                {newHighlightPreview ? (
+                  <img src={newHighlightPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: '24px', color: '#999' }}>+</span>
+                )}
+              </label>
+              <input 
+                id="highlight-image-upload" 
+                type="file" 
+                accept="image/*" 
+                onChange={handleHighlightImageChange} 
+                style={{ display: 'none' }} 
+              />
+              <span style={{ fontSize: '12px', color: '#666' }}>사진 추가</span>
+            </div>
+
+            <input 
+              type="text" 
+              placeholder="하이라이트 이름" 
+              value={newHighlightName} 
+              onChange={(e) => setNewHighlightName(e.target.value)} 
+              style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ddd', width: '100%', boxSizing: 'border-box' }}
+            />
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+              <button onClick={() => setHighlightModalOpen(false)} style={{ flex: 1, padding: '10px', border: '1px solid #ddd', backgroundColor: 'white', borderRadius: '5px', cursor: 'pointer' }}>취소</button>
+              <button onClick={handleSaveHighlight} style={{ flex: 1, padding: '10px', border: 'none', backgroundColor: 'var(--rust)', color: 'white', borderRadius: '5px', cursor: 'pointer' }}>저장</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
