@@ -195,7 +195,7 @@ export default function SnapUpload({ onUploadComplete }) {
           <span style={{ position: 'absolute', left: '15px', top: '12px' }}>🔍</span>
           <input
             type="text"
-            placeholder="지역 검색 (예: 불당동, 홍대)"
+            placeholder="지역 검색 (예: 충청남도 천안시, 인천광역시 연수구)"
             value={selectedLocation ? selectedLocation.full_name : locationSearch}
             onChange={(e) => {
               setLocationSearch(e.target.value);
@@ -208,7 +208,7 @@ export default function SnapUpload({ onUploadComplete }) {
               position: 'absolute', top: '100%', left: 0, width: '100%', background: '#fff',
               border: '1px solid #eee', borderRadius: '0 0 8px 8px', zIndex: 10, listStyle: 'none', padding: 0
             }}>
-              {locationResults.map(loc => (
+              {locationResults.map(loc => ( 
                 <li
                   key={loc.id}
                   onClick={() => { setSelectedLocation(loc); setLocationResults([]); }}
