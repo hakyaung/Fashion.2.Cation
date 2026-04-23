@@ -50,9 +50,7 @@ def get_current_user_optional(request: Request, db: Session = Depends(get_db)):
         print(f"선택적 인증 처리 중 알림 (비로그인): {e}")
         return None
 
-TAG_FIELDS = ["category", "class_label", "color", "style"]
-
-TAG_FIELDS = ["category", "class_label", "color", "style"]
+TAG_FIELDS = ["category", "class_label", "gender", "color", "style"]
 
 def format_tag(tag_name: str) -> str:
     return tag_name.split(":", 1)[-1] if ":" in tag_name else tag_name
