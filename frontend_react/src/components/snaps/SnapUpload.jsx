@@ -1,37 +1,20 @@
-// frontend_react/src/components/snaps/SnapUpload.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { storage } from '../../firebase'; 
+import { storage } from '../../firebase';
 import { useAuth } from '../../context/Authcontext';
-
-// 💡 [추가] 동영상 압축 라이브러리 임포트
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile } from '@ffmpeg/util';
 
 export default function SnapUpload({ onUploadComplete }) {
   const { currentUserId } = useAuth();
-  
-  // 1. 입력 필드 상태 관리
+
   const [content, setContent] = useState('');
   const [tags, setTags] = useState('');
-  
-  // 2. 지역 검색 관련 상태
   const [locationSearch, setLocationSearch] = useState('');
   const [locationResults, setLocationResults] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
-
-  // 3. 파일 및 업로드 상태
   const [file, setFile] = useState(null);
-  
-  // 💡 [수정] 압축과 업로드 상태를 분리하여 디테일한 진행률 표시
-  const [isCompressing, setIsCompressing] = useState(false);
-  const [compressProgress, setCompressProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-
-  // 💡 [추가] FFmpeg 인스턴스 보관용 Ref
-  const ffmpegRef = useRef(new FFmpeg());
 
   const currentProtocol = window.location.protocol;
   const currentHost = window.location.hostname;
@@ -39,81 +22,56 @@ export default function SnapUpload({ onUploadComplete }) {
     ? `https://${currentHost}`
     : `http://${currentHost}:8000`;
 
-  // 실시간 지역 검색 로직 (유지)
   useEffect(() => {
     const searchLocation = async () => {
       if (locationSearch.length < 2 || selectedLocation) {
         setLocationResults([]);
         return;
       }
-
       try {
         setIsSearching(true);
-        const response = await fetch(`${API_BASE_URL}/api/v1/locations/search?q=${encodeURIComponent(locationSearch)}`);
-        if (response.ok) {
-          const data = await response.json();
-          setLocationResults(data);
-        }
+        const response = await fetch(
+          `${API_BASE_URL}/api/v1/locations/search?q=${encodeURIComponent(locationSearch)}`
+        );
+        if (response.ok) setLocationResults(await response.json());
       } catch (error) {
         console.error("지역 검색 실패:", error);
       } finally {
         setIsSearching(false);
       }
     };
-
-    const timer = setTimeout(searchLocation, 400); // 디바운싱
+    const timer = setTimeout(searchLocation, 400);
     return () => clearTimeout(timer);
   }, [locationSearch, selectedLocation, API_BASE_URL]);
 
   const handleFileChange = (e) => {
-    if (e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      if (!selectedFile.type.startsWith('video/')) {
-        alert('영상 파일만 업로드 가능합니다!');
-        return;
-      }
-      setFile(selectedFile);
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    if (!selectedFile.type.startsWith('video/')) {
+      alert('영상 파일만 업로드 가능합니다!');
+      return;
     }
+
+    // 파일 크기 경고 (500MB 초과 시)
+    if (selectedFile.size > 500 * 1024 * 1024) {
+      alert('파일이 너무 큽니다. 500MB 이하의 영상을 올려주세요.');
+      return;
+    }
+
+    setFile(selectedFile);
   };
 
-  // 🚀 [추가] 폰에서 직접 동영상을 압축하는 마법의 함수
-  const compressVideo = async (videoFile) => {
-    setIsCompressing(true);
-    setCompressProgress(0);
-    try {
-      const ffmpeg = ffmpegRef.current;
-      
-      if (!ffmpeg.loaded) {
-        await ffmpeg.load();
-      }
-
-      ffmpeg.on('progress', ({ progress }) => {
-        setCompressProgress(Math.round(progress * 100));
-      });
-
-      await ffmpeg.writeFile('input.mov', await fetchFile(videoFile));
-
-      // 용량은 확 줄이고 속도는 가장 빠르게! (.mp4로 강제 변환)
-      await ffmpeg.exec([
-        '-i', 'input.mov',
-        '-vcodec', 'libx264',
-        '-crf', '28', 
-        '-preset', 'ultrafast', 
-        'output.mp4'
-      ]);
-
-      const data = await ffmpeg.readFile('output.mp4');
-      const compressedBlob = new Blob([data.buffer], { type: 'video/mp4' });
-      const compressedFile = new File([compressedBlob], `compressed_${Date.now()}.mp4`, { type: 'video/mp4' });
-
-      return compressedFile;
-    } catch (error) {
-      console.error("비디오 압축 실패:", error);
-      // 압축 실패 시 에러 내지 않고 쿨하게 원본 파일로 리턴
-      return videoFile; 
-    } finally {
-      setIsCompressing(false);
-    }
+  // 파일 확장자를 실제 MIME 타입 기반으로 결정
+  const getExtension = (file) => {
+    const mime = file.type;
+    if (mime === 'video/mp4') return 'mp4';
+    if (mime === 'video/quicktime') return 'mov';
+    if (mime === 'video/webm') return 'webm';
+    if (mime === 'video/x-msvideo') return 'avi';
+    // 그 외는 원본 확장자 유지
+    const nameParts = file.name.split('.');
+    return nameParts[nameParts.length - 1] || 'mp4';
   };
 
   const handleUpload = async () => {
@@ -122,17 +80,20 @@ export default function SnapUpload({ onUploadComplete }) {
     if (!selectedLocation) return alert("지역을 검색하여 선택해 주세요!");
 
     try {
-      // 🚀 1단계: 동영상 압축 (여기서 시간이 조금 걸릴 수 있습니다)
-      const fileToUpload = await compressVideo(file);
-
-      // 🚀 2단계: 파이어베이스 스토리지 업로드 시작
       setIsUploading(true);
       setUploadProgress(0);
-      
-      // 파일명 끝을 무조건 .mp4로 고정 (아이폰 호환성 극대화)
-      const fileName = `snaps/${currentUserId}_${Date.now()}.mp4`;
+
+      // ✅ 실제 MIME 타입 기반으로 확장자 결정 (속이지 않음)
+      const ext = getExtension(file);
+      const fileName = `snaps/${currentUserId}_${Date.now()}.${ext}`;
       const storageRef = ref(storage, fileName);
-      const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
+
+      // ✅ 올바른 contentType 명시 (Firebase가 Content-Type을 정확히 저장)
+      const metadata = {
+        contentType: file.type || 'video/mp4',
+      };
+
+      const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
       uploadTask.on(
         'state_changed',
@@ -141,32 +102,38 @@ export default function SnapUpload({ onUploadComplete }) {
           setUploadProgress(Math.round(p));
         },
         (error) => {
-          console.error(error);
-          alert("파이어베이스 업로드 실패!");
+          console.error("Firebase 업로드 에러:", error);
+          // 에러 코드별 안내
+          if (error.code === 'storage/unauthorized') {
+            alert("업로드 권한이 없습니다. 로그인 상태를 확인해 주세요.");
+          } else if (error.code === 'storage/quota-exceeded') {
+            alert("저장 공간이 부족합니다.");
+          } else {
+            alert(`업로드 실패: ${error.message}`);
+          }
           setIsUploading(false);
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
 
-          // 🚀 3단계: 백엔드 DB 저장
           const token = localStorage.getItem('stylescape_token');
           const response = await fetch(`${API_BASE_URL}/api/v1/posts/snaps`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
+              'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({
               video_url: downloadURL,
-              content: content,
-              location_id: selectedLocation.id, 
-              tags: tags
-            })
+              content,
+              location_id: selectedLocation.id,
+              tags,
+            }),
           });
 
           if (response.ok) {
             alert("스냅이 성공적으로 게시되었습니다! 🎬");
-            if (onUploadComplete) onUploadComplete();
+            onUploadComplete?.();
           } else {
             alert("서버 저장에 실패했습니다.");
           }
@@ -179,9 +146,6 @@ export default function SnapUpload({ onUploadComplete }) {
     }
   };
 
-  // 작업 진행 중인지 확인 (압축 중이거나 업로드 중일 때)
-  const isWorking = isCompressing || isUploading;
-
   return (
     <div className="snap-upload-wrapper" style={{ maxWidth: '650px', margin: '0 auto', padding: '20px' }}>
       <div className="widget" style={{ background: '#fff', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
@@ -190,18 +154,16 @@ export default function SnapUpload({ onUploadComplete }) {
           영상과 함께 당신의 스타일을 자유롭게 공유해 보세요.
         </p>
 
-        {/* 1. 본문 입력 */}
         <textarea
           placeholder="어떤 스타일인가요? 패션에 대한 이야기를 자유롭게 적어주세요."
           value={content}
           onChange={(e) => setContent(e.target.value)}
           style={{
             width: '100%', height: '150px', padding: '15px', borderRadius: '8px',
-            border: '1px solid #eee', background: '#fcfcfc', marginBottom: '16px', resize: 'none'
+            border: '1px solid #eee', background: '#fcfcfc', marginBottom: '16px', resize: 'none',
           }}
         />
 
-        {/* 2. 지역 검색 */}
         <div style={{ position: 'relative', marginBottom: '16px' }}>
           <span style={{ position: 'absolute', left: '15px', top: '12px' }}>🔍</span>
           <input
@@ -214,23 +176,18 @@ export default function SnapUpload({ onUploadComplete }) {
             }}
             style={{ width: '100%', padding: '12px 12px 12px 45px', borderRadius: '8px', border: '1px solid #eee' }}
           />
-          
-          {/* 검색 결과 드롭다운 */}
           {locationResults.length > 0 && (
             <ul style={{
               position: 'absolute', top: '100%', left: 0, width: '100%', background: '#fff',
-              border: '1px solid #eee', borderRadius: '0 0 8px 8px', zIndex: 10, listStyle: 'none', padding: 0
+              border: '1px solid #eee', borderRadius: '0 0 8px 8px', zIndex: 10, listStyle: 'none', padding: 0,
             }}>
               {locationResults.map(loc => (
-                <li 
-                  key={loc.id} 
-                  onClick={() => {
-                    setSelectedLocation(loc);
-                    setLocationResults([]);
-                  }}
+                <li
+                  key={loc.id}
+                  onClick={() => { setSelectedLocation(loc); setLocationResults([]); }}
                   style={{ padding: '12px 15px', cursor: 'pointer', borderBottom: '1px solid #f9f9f9' }}
-                  onMouseEnter={(e) => e.target.style.background = '#f5f5f5'}
-                  onMouseLeave={(e) => e.target.style.background = 'none'}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                 >
                   {loc.full_name}
                 </li>
@@ -239,7 +196,6 @@ export default function SnapUpload({ onUploadComplete }) {
           )}
         </div>
 
-        {/* 3. 태그 입력 */}
         <input
           type="text"
           placeholder="태그 (쉼표로 구분, 예: 스트릿, 오버핏)"
@@ -248,60 +204,61 @@ export default function SnapUpload({ onUploadComplete }) {
           style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #eee', marginBottom: '20px' }}
         />
 
-        {/* 4. 동영상 첨부 영역 */}
         <div
-          onClick={() => !isWorking && document.getElementById('snap-video-file').click()}
+          onClick={() => !isUploading && document.getElementById('snap-video-file').click()}
           style={{
             border: '2px dashed #ddd', borderRadius: '12px', padding: '40px 20px',
-            textAlign: 'center', cursor: 'pointer', background: '#fdfbf9', marginBottom: '24px'
+            textAlign: 'center', cursor: 'pointer', background: '#fdfbf9', marginBottom: '24px',
           }}
         >
-          {/* 💡 [핵심] 아이폰 포맷 완벽 지원 */}
-          <input 
-            type="file" 
-            id="snap-video-file" 
-            accept="video/*, video/mp4, video/quicktime, .mov, .MOV" 
-            hidden 
-            onChange={handleFileChange} 
+          {/* ✅ iOS .mov, 삼성 .mp4 모두 포함 */}
+          <input
+            type="file"
+            id="snap-video-file"
+            accept="video/*"
+            hidden
+            onChange={handleFileChange}
           />
           {file ? (
-            <p style={{ color: '#d16b3c', fontWeight: 'bold' }}>✅ {file.name}</p>
+            <div>
+              <p style={{ color: '#d16b3c', fontWeight: 'bold' }}>✅ {file.name}</p>
+              <p style={{ color: '#999', fontSize: '12px', marginTop: '4px' }}>
+                {(file.size / (1024 * 1024)).toFixed(1)} MB · {file.type}
+              </p>
+            </div>
           ) : (
             <p style={{ color: '#c98e6a' }}>+ 동영상 첨부 (필수)</p>
           )}
         </div>
 
-        {/* 5. 💡 통합 진행바 (압축 & 업로드) */}
-        {isWorking && (
+        {isUploading && (
           <div style={{ marginBottom: '20px' }}>
             <div style={{ width: '100%', height: '8px', background: '#eee', borderRadius: '4px', overflow: 'hidden' }}>
-              <div 
-                style={{ 
-                  width: `${isCompressing ? compressProgress : uploadProgress}%`, 
-                  height: '100%', 
-                  background: isCompressing ? '#4CAF50' : '#d16b3c', // 압축: 초록색, 업로드: 주황색
-                  transition: 'width 0.3s' 
-                }} 
+              <div
+                style={{
+                  width: `${uploadProgress}%`,
+                  height: '100%',
+                  background: '#d16b3c',
+                  transition: 'width 0.3s',
+                }}
               />
             </div>
-            <p style={{ textAlign: 'center', fontSize: '13px', marginTop: '8px', color: isCompressing ? '#4CAF50' : '#d16b3c', fontWeight: 'bold' }}>
-              {isCompressing 
-                ? `🔥 영상 용량 압축 중... ${compressProgress}%` 
-                : `☁️ 서버로 업로드 중... ${uploadProgress}%`}
+            <p style={{ textAlign: 'center', fontSize: '13px', marginTop: '8px', color: '#d16b3c', fontWeight: 'bold' }}>
+              ☁️ 서버로 업로드 중... {uploadProgress}%
             </p>
           </div>
         )}
 
         <button
           onClick={handleUpload}
-          disabled={isWorking}
+          disabled={isUploading}
           style={{
             width: '100%', padding: '16px', borderRadius: '8px', border: 'none',
             background: '#d16b3c', color: '#fff', fontWeight: 'bold', fontSize: '16px',
-            cursor: isWorking ? 'default' : 'pointer', opacity: isWorking ? 0.7 : 1
+            cursor: isUploading ? 'default' : 'pointer', opacity: isUploading ? 0.7 : 1,
           }}
         >
-          {isWorking ? '처리 중...' : '커뮤니티에 게시 ✦'}
+          {isUploading ? `업로드 중... ${uploadProgress}%` : '커뮤니티에 게시 ✦'}
         </button>
       </div>
     </div>
