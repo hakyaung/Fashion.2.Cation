@@ -73,16 +73,16 @@ model = YOLO("yolov8n.pt")
 
 results = model.train(
     data      = YAML_PATH,
-    epochs    = 50,          # 에폭 수 (데이터 적으면 30~50 권장)
-    imgsz     = 224,          # 입력 이미지 크기
-    batch     = 32,           # 배치 크기 (GPU 메모리 부족 시 16으로 줄이기)
-    patience  = 10,           # Early stopping (10 에폭 동안 개선 없으면 중단)
+    epochs    = 50,           # 에폭 수 (데이터 적으면 30~50 권장)
+    imgsz     = 640,           # 입력 이미지 크기 — 작은 객체/전신 샷까지 잡으려면 640 필수
+    batch     = 16,            # imgsz 가 224→640 으로 커진 만큼 배치 축소
+    patience  = 10,            # Early stopping (10 에폭 동안 개선 없으면 중단)
     device    = _resolve_device(),  # CUDA → MPS → CPU 자동 폴백
     project   = os.path.join(BASE_DIR, "runs", "detect"),
     name      = "fashion_yolo",
     exist_ok  = True,
     verbose   = True,
-    seed      = SEED,         # ultralytics 내부 시드도 고정
+    seed      = SEED,          # ultralytics 내부 시드도 고정
 )
 
 # ────────────────────────────────────────────────
