@@ -65,14 +65,34 @@ export default function CommunityPage() {
   const [editModal, setEditModal] = useState({ open: false, post: null, type: 'post' });
 
   // ==========================================
-  // 로그인 감지 시 온보딩 모달 자동 오픈 로직
+  // 🚀 [수정] 닌자 프리패칭 로직 (홈 화면 진입 즉시 백그라운드에서 당겨오기)
   // ==========================================
+  const [cachedSnaps, setCachedSnaps] = useState(null);
+
   useEffect(() => {
-    // 로그인 상태이고, 로컬 스토리지에 온보딩 완료 기록이 없다면 띄웁니다.
-    if (isLoggedIn && !localStorage.getItem('stylescape_onboarding_done')) {
-      setOnboardingOpen(true);
-    }
-  }, [isLoggedIn]);
+    const preloadSnaps = async () => {
+      try {
+        const currentProtocol = window.location.protocol;
+        const currentHost = window.location.hostname;
+        const API_BASE_URL = currentProtocol === 'https:' ? `https://${currentHost}` : `http://${currentHost}:8000`;
+        
+        const token = localStorage.getItem('stylescape_token');
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+        const response = await fetch(`${API_BASE_URL}/api/v1/posts/snaps`, { headers });
+        if (response.ok) {
+          const data = await response.json();
+          setCachedSnaps(data); 
+        }
+        console.log("스냅 가져오기");
+      } catch (error) {
+        console.error("스냅 프리패칭 실패", error);
+      }
+    };
+
+    // 💡 2.5초 딜레이 삭제! 즉시 백그라운드에서 실행 (화면 버벅임 없음)
+    preloadSnaps(); 
+  }, []);
 
   const handleOnboardingComplete = useCallback(() => {
     // 취향 설정 완료 기록을 저장하여 다시 안 뜨게 처리
@@ -274,6 +294,7 @@ export default function CommunityPage() {
           {activeView === 'snap' && (
             <SnapFeed 
               key={`snap-${feedKey}`}
+              prefetchedSnaps={cachedSnaps} // 💡 [핵심 추가] 백그라운드에서 몰래 받아둔 데이터를 자식에게 건네줍니다!
               onProfileClick={handleProfileClick}
               onCommentOpen={(id, ownerId, type, onAdded, onRemoved) => 
                 handleCommentOpen(id, ownerId, type, onAdded, onRemoved)
