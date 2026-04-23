@@ -33,6 +33,15 @@ class FashionDataset(Dataset):
         self.img_dir = img_dir
         self.transform = transform
 
+        # 실제 디스크에 없는 이미지는 제외 (preprocess 단계에서 일부가 빠졌을 수 있음)
+        exists_mask = self.data_frame["filename"].apply(
+            lambda fn: os.path.exists(os.path.join(img_dir, fn))
+        )
+        missing = int((~exists_mask).sum())
+        if missing:
+            print(f"⚠️  누락된 이미지 {missing}개 건너뜀 (총 {len(self.data_frame)}개 중)")
+            self.data_frame = self.data_frame[exists_mask].reset_index(drop=True)
+
         # 우선순위 1: CSV 에 이미 인코딩된 *_code 컬럼이 있으면 그대로 사용.
         #            (final_multitask_data.csv 는 class_code / color_code / style_code 를 포함)
         # 우선순위 2: label_maps.json 기반으로 문자열 컬럼(category/color/style)을 인코딩
