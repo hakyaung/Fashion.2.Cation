@@ -16,6 +16,7 @@ export default function RightSidebar({ activeView, onOpenPostModal, onOpenSnapUp
 
   return (
     <aside className="right-sidebar">
+      {/*
       <div className="widget">
         <h3 className="widget-title">{t('rightSidebar.trendingTitle')}</h3>
         <ul className="trending-list">
@@ -35,6 +36,7 @@ export default function RightSidebar({ activeView, onOpenPostModal, onOpenSnapUp
           ))}
         </ul>
       </div>
+      */}
 
       <div className="widget write-widget" style={{ borderColor: 'var(--rust)', background: 'var(--off-white)' }}>
         {/* 💡 [수정됨] 현재 화면 상태(isSnapMode)에 따라 위젯 내용이 동적으로 바뀝니다! */}

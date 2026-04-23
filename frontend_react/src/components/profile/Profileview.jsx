@@ -1,3 +1,4 @@
+// frontend_react/src/components/profile/ProfileView.jsx
 import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchMyPosts, fetchUserProfile, toggleFollowApi, API_URL } from '../../api/api'; 
@@ -84,16 +85,17 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
         <div className="profile-info">
           <div className="profile-username">
             <span id="profile-nickname-display">{profile?.nickname || t('profile.defaultNickname')}</span>
-            <span className="settings-icon">⚙</span>
           </div>
-          <div className="profile-name">{t('profile.director')}</div>
+          {/*<div className="profile-name">{t('profile.director')}</div>*/}
           <ul className="profile-stats">
             <li>{t('profile.posts')} <strong>{profile?.posts_count || 0}</strong></li>
             <li>{t('profile.followers')} <strong>{profile?.followers_count || 0}</strong></li>
             <li>{t('profile.following')} <strong>{profile?.following_count || 0}</strong></li>
           </ul>
+          
+          {/* 🚀 [핵심 수정] key={profile.bio}를 추가하여 소개 글이 바뀔 때마다 컴포넌트를 강제 리렌더링! */}
           <div className="profile-bio">
-            {profile?.bio ? <TranslatableText text={profile.bio} compact /> : t('profile.defaultBio')}
+            {profile?.bio ? <TranslatableText key={profile.bio} text={profile.bio} compact /> : t('profile.defaultBio')}
           </div>
           
           <div className="profile-actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -144,7 +146,7 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
         </div>
       </div>
 
-      {/* 하이라이트 */}
+      {/* 하이라이트 아직은 구현되지 않아 보이지 않게 수정
       <div className="profile-highlights">
         <div className="highlight-item"><div className="highlight-circle"></div><span>OOTD</span></div>
         <div className="highlight-item"><div className="highlight-circle"></div><span>Cafe</span></div>
@@ -153,11 +155,12 @@ export default function ProfileView({ targetUserId, onOpenChat }) {
           <span>{t('profile.highlightNew')}</span>
         </div>
       </div>
+      */}
 
       <div className="profile-tabs">
         <div className="tab active"><span>▤</span> {t('profile.tabPosts')}</div>
-        <div className="tab"><span>⚑</span> {t('profile.tabSaved')}</div>
-        <div className="tab"><span>☺</span> {t('profile.tabTagged')}</div>
+        {/*<div className="tab"><span>⚑</span> {t('profile.tabSaved')}</div>
+        <div className="tab"><span>☺</span> {t('profile.tabTagged')}</div>*/}
       </div>
 
       {loading ? (
