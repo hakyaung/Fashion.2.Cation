@@ -12,7 +12,8 @@ train_transform = transforms.Compose([
     transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
     transforms.RandomHorizontalFlip(p=0.5),
     transforms.RandomRotation(degrees=15),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+    # NOTE: color 라벨이 있는 멀티태스크 학습이라 ColorJitter(saturation/hue) 는
+    #       라벨과 입력을 불일치시킴. → 공간 증강만 사용.
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
