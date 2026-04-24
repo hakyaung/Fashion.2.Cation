@@ -1,30 +1,34 @@
 """
-metadata.csv → YOLOv8 Detection 포맷 변환
-==========================================
+metadata.csv → YOLOv8 Detection 포맷 변환 (패션 사전학습 자동 라벨링)
+==================================================================
 출력 구조:
   ai_dataset_yolo/
-    images/
-      train/   *.jpg
-      val/     *.jpg
-    labels/
-      train/   *.txt   (YOLO 포맷: class_id cx cy w h)
-    dataset.yaml         (YOLOv8 학습 설정 파일)
-    classes.txt          (클래스 이름 목록)
+    images/{train,val}/   *.jpg
+    labels/{train,val}/   *.txt   (multi-bbox per image)
+    dataset.yaml
+    classes.txt
+    fashion_pretrained_path.txt   (train.py 가 시작 weight 로 사용)
 
-바운딩 박스 전략
----------------
-- 1차: 사전학습 YOLOv8n (COCO, person 클래스) 로 person 탐지 →
-       그 bbox 를 옷 라벨로 사용 (옷이 사람보다 살짝 넓을 수 있어 10% 확장)
-- 2차: person 이 안 잡히는 플랫 레이/상품 컷은 이미지 전체(0.5 0.5 1 1) fallback
+이번 버전의 핵심
+----------------
+- HuggingFace 의 패션 사전학습 YOLO (`yainage90/fashion-object-detection`) 로
+  각 이미지에서 **모든 옷 항목을 multi-class · multi-bbox 로 자동 라벨링**.
+- 패션 모델 클래스(top/bottom/dress/outer/bag/shoes/...) →
+  CSV 의 gender 와 결합해 우리 9-클래스 (예: 여성_상의, 남성_가방) 로 매핑.
+- detection 0개인 사진은 fallback 으로 이미지 전체 + CSV primary class 사용.
 
-이렇게 해야 거리 있는 사진/전신 샷에서도 YOLO 가 정확한 영역을 잡을 수 있음.
-(기존: 모든 라벨이 전체 이미지 → 모델이 항상 전체만 반환하는 문제)
+기존 문제와의 차이
+- 이전: 모든 이미지의 라벨이 (0.5 0.5 1.0 1.0) 또는 person bbox 1개
+        → 모델이 항상 "전체 영역 = 한 클래스" 로 학습
+- 신규: 한 사진에 상의·하의·가방·신발 등을 **각각 다른 bbox** 로 학습
+        → 거리 사진/가방·신발/multi-item 사진 정상 detection
 """
 
 import os
 import shutil
 import platform
 import ssl
+from collections import Counter
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -32,6 +36,39 @@ from sklearn.model_selection import train_test_split
 # Mac SSL 우회 (ultralytics 가중치 다운로드)
 if platform.system() == "Darwin":
     ssl._create_default_https_context = ssl._create_unverified_context
+
+# ────────────────────────────────────────────────
+# 패션 클래스 → 우리 카테고리 매핑
+# (gender 와 결합해서 우리 9-클래스 생성: 예 "여성" + "상의" → "여성_상의")
+# 매핑되지 않는 클래스(예: hat) 는 skip
+# ────────────────────────────────────────────────
+FASHION_TO_CATEGORY = {
+    # yainage90/fashion-object-detection 표준 클래스
+    "top":     "상의",
+    "bottom":  "하의",
+    "dress":   "하의",      # 원피스/드레스 → 하의
+    "outer":   "아우터",
+    "bag":     "가방",
+    "shoes":   "신발",
+    "hat":     None,         # 우리 분류에 없음
+    # DeepFashion2 호환 클래스 (혹시 다른 모델 쓸 때 자동 호환)
+    "short_sleeve_top":      "상의",
+    "long_sleeve_top":       "상의",
+    "short_sleeve_outwear":  "아우터",
+    "long_sleeve_outwear":   "아우터",
+    "vest":                  "상의",
+    "sling":                 "상의",
+    "shorts":                "하의",
+    "trousers":              "하의",
+    "skirt":                 "하의",
+    "short_sleeve_dress":    "상의",
+    "long_sleeve_dress":     "상의",
+    "vest_dress":            "상의",
+    "sling_dress":           "상의",
+}
+
+# 신뢰도 임계값 (낮으면 false positive 늘어남, 높으면 누락)
+DETECTION_CONF = 0.30
 
 # ────────────────────────────────────────────────
 # 경로 설정
@@ -52,9 +89,6 @@ for split in ["train", "val"]:
 # 데이터 로드 및 클래스 매핑
 # ────────────────────────────────────────────────
 df = pd.read_csv(CSV_PATH)
-
-# class_label(gender+category) 기준 9개 클래스 사용
-# clean_metadata.py 에서 이미 class_label 컬럼이 생성되어 있음
 if "class_label" not in df.columns:
     df["class_label"] = df["gender"] + "_" + df["category"]
 
@@ -62,105 +96,170 @@ categories = sorted(df["class_label"].unique().tolist())
 cat2id = {cat: i for i, cat in enumerate(categories)}
 
 print(f"📦 총 데이터: {len(df)}장")
-print(f"🏷️  클래스 {len(categories)}개: {categories}")
+print(f"🏷️  우리 9-클래스 ({len(categories)}개): {categories}")
+print(f"   gender 종류: {sorted(df['gender'].unique().tolist())}")
 print()
 
 # ────────────────────────────────────────────────
-# Train / Val 분할 (80:20, category 비율 유지)
+# Train / Val 분할 (80:20, class_label 비율 유지)
 # ────────────────────────────────────────────────
 train_df, val_df = train_test_split(
     df, test_size=0.2, random_state=42, stratify=df["class_label"]
 )
 train_df = train_df.reset_index(drop=True)
 val_df   = val_df.reset_index(drop=True)
-
 print(f"📚 Train: {len(train_df)}장  |  📝 Val: {len(val_df)}장")
 print()
 
+
 # ────────────────────────────────────────────────
-# Auto-labeling 모델 로드 (COCO 사전학습 YOLOv8n)
-# person(class 0) 탐지만 사용
+# 패션 사전학습 YOLO 다운로드
 # ────────────────────────────────────────────────
-print("🤖 Auto-labeling 모델 로드 중 (COCO 사전학습 YOLOv8n)...")
+def _download_fashion_weights() -> str:
+    """HuggingFace 에서 패션 YOLO weights 다운로드. 실패 시 환경변수/에러."""
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError:
+        raise SystemExit(
+            "\n❌ huggingface_hub 가 없습니다.\n"
+            "   설치: pip install huggingface_hub\n"
+        )
+
+    candidates = [
+        ("yainage90/fashion-object-detection", "model.pt"),
+        ("yainage90/fashion-object-detection", "fashion-object-detection.pt"),
+        ("yainage90/fashion-object-detection", "best.pt"),
+        ("yainage90/fashion-object-detection", "weights.pt"),
+    ]
+    for repo_id, filename in candidates:
+        try:
+            print(f"   ↓ {repo_id}/{filename} ...")
+            return hf_hub_download(repo_id=repo_id, filename=filename)
+        except Exception as e:
+            print(f"     실패 ({type(e).__name__})")
+
+    # 환경변수 fallback
+    env_path = os.environ.get("FASHION_WEIGHTS")
+    if env_path and os.path.exists(env_path):
+        print(f"   ✓ 환경변수 FASHION_WEIGHTS 사용: {env_path}")
+        return env_path
+
+    raise SystemExit(
+        "\n❌ 패션 사전학습 weight 다운로드 실패.\n"
+        "   대안:\n"
+        "     1) https://huggingface.co/yainage90/fashion-object-detection 방문 → .pt 직접 다운로드\n"
+        "     2) 환경변수 지정 후 재실행:\n"
+        "        export FASHION_WEIGHTS=/path/to/fashion.pt\n"
+        "        python convert_to_yolo.py\n"
+    )
+
+
+print("🤖 패션 사전학습 YOLO 다운로드 중 (최초 1회만, 이후 ~/.cache 캐시 사용)...")
 from ultralytics import YOLO  # noqa: E402
-_auto_labeler = YOLO("yolov8n.pt")
+weights_path = _download_fashion_weights()
+fashion_model = YOLO(weights_path)
+fashion_classes = list(fashion_model.names.values())
+print(f"   ✓ 모델 weight: {weights_path}")
+print(f"   ✓ 모델 클래스 ({len(fashion_classes)}개): {fashion_classes}")
 print()
 
-# person bbox expansion 비율 (옷이 사람 외곽선보다 살짝 더 크기 때문)
-BBOX_EXPAND = 1.10
+# 매핑 검증
+mapped = [c for c in fashion_classes if FASHION_TO_CATEGORY.get(c.lower())]
+unmapped = [c for c in fashion_classes if not FASHION_TO_CATEGORY.get(c.lower())]
+print("🔍 클래스 매핑 검증:")
+print(f"   매핑 OK ({len(mapped)}): {mapped}")
+print(f"   skip ({len(unmapped)}): {unmapped}")
+if not mapped:
+    raise SystemExit(
+        "\n❌ 매핑되는 클래스가 하나도 없습니다.\n"
+        f"   모델 클래스: {fashion_classes}\n"
+        "   → FASHION_TO_CATEGORY 딕셔너리 확인 후 수정하세요.\n"
+    )
+print()
 
 
-def _bbox_for(src_img: str):
-    """사전학습 YOLO 로 person bbox 탐지.
-    성공하면 (cx, cy, w, h, True), 실패 시 (0.5, 0.5, 1.0, 1.0, False)."""
-    try:
-        res = _auto_labeler(src_img, classes=[0], conf=0.25, verbose=False)
-        if res and len(res) > 0 and res[0].boxes is not None and len(res[0].boxes) > 0:
-            xywhn = res[0].boxes.xywhn  # normalized cx, cy, w, h
-            areas = xywhn[:, 2] * xywhn[:, 3]
-            idx = int(areas.argmax())
-            cx, cy, w, h = xywhn[idx].tolist()
-            # 옷이 사람 외곽선보다 살짝 더 클 수 있으니 10% 확장 후 [0,1] clamp
-            w = max(0.05, min(1.0, w * BBOX_EXPAND))
-            h = max(0.05, min(1.0, h * BBOX_EXPAND))
-            cx = max(0.0, min(1.0, cx))
-            cy = max(0.0, min(1.0, cy))
-            return cx, cy, w, h, True
-    except Exception as e:
-        print(f"  ⚠️  bbox 탐지 실패 ({os.path.basename(src_img)}): {e}")
-    return 0.5, 0.5, 1.0, 1.0, False
+def _resolve_our_class_id(fashion_class_name: str, gender: str):
+    """패션 클래스 + gender → 우리 class_id. 매핑 안 되면 None."""
+    category = FASHION_TO_CATEGORY.get(fashion_class_name.lower())
+    if category is None:
+        return None
+    our_class = f"{gender}_{category}"
+    return cat2id.get(our_class)
 
 
 # ────────────────────────────────────────────────
-# 이미지 복사 + 라벨 .txt 생성
+# 이미지 복사 + multi-bbox 라벨 .txt 생성
 # ────────────────────────────────────────────────
 def process_split(split_df, split_name):
-    ok = skip = auto_hit = auto_miss = 0
+    ok = skip = no_det = 0
+    cls_counter = Counter()
     n = len(split_df)
+
     for i, (_, row) in enumerate(split_df.iterrows()):
-        filename   = row["filename"]
-        class_id   = cat2id[row["class_label"]]
-        src_img    = os.path.join(SRC_IMG_DIR, filename)
+        filename = row["filename"]
+        gender   = row["gender"]
+        primary_cls_id = cat2id[row["class_label"]]
+        src_img  = os.path.join(SRC_IMG_DIR, filename)
 
         if not os.path.exists(src_img):
             skip += 1
             continue
 
-        # bbox 추출 (실패 시 이미지 전체로 fallback)
-        cx, cy, w, h, hit = _bbox_for(src_img)
-        if hit:
-            auto_hit  += 1
-        else:
-            auto_miss += 1
+        # 패션 모델로 모든 옷 항목 detection
+        labels = []
+        try:
+            res = fashion_model(src_img, conf=DETECTION_CONF, verbose=False)
+            if res and len(res) > 0 and res[0].boxes is not None:
+                for box in res[0].boxes:
+                    cls_idx = int(box.cls)
+                    cls_name = fashion_model.names[cls_idx]
+                    cls_id = _resolve_our_class_id(cls_name, gender)
+                    if cls_id is None:
+                        continue
+                    cx, cy, w, h = box.xywhn[0].tolist()
+                    # [0,1] clamp (안전장치)
+                    cx = max(0.0, min(1.0, cx))
+                    cy = max(0.0, min(1.0, cy))
+                    w  = max(0.01, min(1.0, w))
+                    h  = max(0.01, min(1.0, h))
+                    labels.append((cls_id, cx, cy, w, h))
+                    cls_counter[cls_name] += 1
+        except Exception as e:
+            print(f"  ⚠️  detection 에러 {filename}: {e}")
+
+        # detection 0개면 fallback (이미지 전체 + CSV primary class)
+        if not labels:
+            labels.append((primary_cls_id, 0.5, 0.5, 1.0, 1.0))
+            no_det += 1
 
         # 이미지 복사
         dst_img = os.path.join(YOLO_DIR, "images", split_name, filename)
         shutil.copy2(src_img, dst_img)
 
-        # 라벨 파일 생성
+        # 라벨 파일 생성 (multi-bbox)
         label_name = os.path.splitext(filename)[0] + ".txt"
         dst_lbl    = os.path.join(YOLO_DIR, "labels", split_name, label_name)
         with open(dst_lbl, "w") as f:
-            # YOLO 포맷: class_id cx cy w h (모두 0~1 정규화)
-            f.write(f"{class_id} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
+            for cls_id, cx, cy, w, h in labels:
+                f.write(f"{cls_id} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
 
         ok += 1
         if (i + 1) % 200 == 0 or (i + 1) == n:
-            print(f"  [{split_name}] {i+1}/{n}  auto_hit={auto_hit}  fallback={auto_miss}  skip={skip}")
+            print(f"  [{split_name}] {i+1}/{n}  fallback={no_det}  skip={skip}")
 
-    print(f"  ✅ {split_name} 완료: {ok}장 (auto={auto_hit}, fallback={auto_miss}) / skip={skip}")
+    print(f"  ✅ {split_name} 완료: {ok}장 (정상 detection={ok-no_det}, fallback={no_det}, skip={skip})")
+    print(f"     클래스별 detection 횟수: {dict(cls_counter)}")
 
 
-print("🔄 이미지 복사 + auto-labeling 라벨 생성 중...")
+print("🔄 이미지 복사 + 패션 사전학습 모델 자동 라벨링 중...")
 process_split(train_df, "train")
 process_split(val_df,   "val")
 
 # ────────────────────────────────────────────────
-# dataset.yaml 생성 (YOLOv8 학습 설정)
+# dataset.yaml 생성
 # ────────────────────────────────────────────────
 yaml_path = os.path.join(YOLO_DIR, "dataset.yaml")
-names_str  = "\n".join([f"  {i}: {cat}" for i, cat in enumerate(categories)])
-
+names_str = "\n".join([f"  {i}: {cat}" for i, cat in enumerate(categories)])
 yaml_content = f"""# Fashion.2.Cation YOLOv8 Dataset
 path: {YOLO_DIR}
 train: images/train
@@ -173,17 +272,24 @@ names:
 with open(yaml_path, "w", encoding="utf-8") as f:
     f.write(yaml_content)
 
-# classes.txt 생성
+# train.py 가 시작 weight 로 쓸 수 있게 패션 모델 경로 저장
+marker_path = os.path.join(YOLO_DIR, "fashion_pretrained_path.txt")
+with open(marker_path, "w", encoding="utf-8") as f:
+    f.write(weights_path)
+
+# classes.txt
 classes_path = os.path.join(YOLO_DIR, "classes.txt")
 with open(classes_path, "w", encoding="utf-8") as f:
     for cat in categories:
         f.write(cat + "\n")
 
 print()
-print("=" * 50)
+print("=" * 60)
 print(f"🎉 YOLO 데이터셋 변환 완료!")
 print(f"   저장 위치: {YOLO_DIR}")
 print(f"   dataset.yaml: {yaml_path}")
+print(f"   fashion 시작 weight: {marker_path}")
 print()
 print("  다음 단계: python train.py")
-print("=" * 50)
+print("            → 패션 사전학습 weight 자동으로 시작점 사용")
+print("=" * 60)

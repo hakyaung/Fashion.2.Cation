@@ -68,8 +68,29 @@ print("=" * 55)
 print("  🚀 Fashion.2.Cation — YOLOv8 Detection 학습 시작")
 print("=" * 55)
 
-# YOLOv8n (nano) — 가볍고 빠름 / 더 높은 정확도 원하면 yolov8s.pt, yolov8m.pt 사용
-model = YOLO("yolov8n.pt")
+
+# ────────────────────────────────────────────────
+# 시작 weight 결정 — 패션 사전학습 우선, 없으면 yolov8n.pt 폴백
+#
+# transfer learning:
+#   convert_to_yolo.py 가 'fashion_pretrained_path.txt' marker 를 만들어두면
+#   패션 도메인 사전학습 모델을 시작점으로 사용 (backbone feature 재활용,
+#   detection head 만 우리 9-클래스로 재초기화)
+#   → COCO 시작점보다 도메인 갭이 작아 더 빨리·더 잘 수렴
+# ────────────────────────────────────────────────
+def _resolve_start_weights():
+    marker = os.path.join(YOLO_DIR, "fashion_pretrained_path.txt")
+    if os.path.exists(marker):
+        with open(marker, "r", encoding="utf-8") as f:
+            path = f.read().strip()
+        if path and os.path.exists(path):
+            return path, "fashion-pretrained"
+    return "yolov8n.pt", "COCO-pretrained (fallback)"
+
+
+start_w, start_kind = _resolve_start_weights()
+print(f"🎯 시작 weight: {start_w}  ({start_kind})")
+model = YOLO(start_w)
 
 results = model.train(
     data      = YAML_PATH,
