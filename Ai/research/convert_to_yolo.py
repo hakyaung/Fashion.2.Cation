@@ -141,13 +141,20 @@ try:
 except ImportError as e:
     raise SystemExit(
         f"\n❌ 필요한 패키지가 없습니다 ({e.name}).\n"
-        "   설치: pip install transformers torch pillow\n"
+        "   설치: pip install transformers torch pillow timm\n"
     )
 
 HF_REPO = "yainage90/fashion-object-detection"
 try:
     processor = AutoImageProcessor.from_pretrained(HF_REPO)
     detector  = AutoModelForObjectDetection.from_pretrained(HF_REPO)
+except ImportError as e:
+    # timm 같은 의존성 누락 — 네트워크 문제 아님
+    raise SystemExit(
+        f"\n❌ 의존성 누락: {e}\n"
+        "   설치: pip install timm transformers torch pillow\n"
+        "   (DETR backbone 이 timm 라이브러리를 필요로 합니다)\n"
+    )
 except Exception as e:
     raise SystemExit(
         f"\n❌ 패션 detector 다운로드 실패: {type(e).__name__}: {e}\n"
