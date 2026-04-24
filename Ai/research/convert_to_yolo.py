@@ -188,11 +188,12 @@ print()
 
 
 @torch.inference_mode()
-def detect_boxes(pil_image):
-    """이미지 1장 → [(class_name, cx, cy, w, h), ...] (정규화된 xywh)."""
-    inputs = processor(images=pil_image, return_tensors="pt").to(DET_DEVICE)
+def _detect_boxes_on(pil_image, device):
+    inputs = processor(images=pil_image, return_tensors="pt")
+    inputs = {k: v.to(device) for k, v in inputs.items()}
     outputs = detector(**inputs)
-    target_sizes = torch.tensor([pil_image.size[::-1]], device=DET_DEVICE)  # (H, W)
+    # target_sizes 는 CPU 로 두는 게 transformers 내부와 가장 호환됨
+    target_sizes = torch.tensor([pil_image.size[::-1]])  # (H, W)
     results = processor.post_process_object_detection(
         outputs, threshold=DETECTION_CONF, target_sizes=target_sizes
     )[0]
@@ -208,6 +209,22 @@ def detect_boxes(pil_image):
         h  = (y2 - y1) / H
         out.append((cls_name, cx, cy, w, h))
     return out
+
+
+# MPS 에서 DETR 일부 op 가 미지원일 수 있음 → 실패 시 CPU 로 영구 폴백.
+_device_state = {"device": DET_DEVICE, "mps_failed": False}
+
+def detect_boxes(pil_image):
+    try:
+        return _detect_boxes_on(pil_image, _device_state["device"])
+    except (NotImplementedError, RuntimeError) as e:
+        if _device_state["device"].type == "mps" and not _device_state["mps_failed"]:
+            print(f"  ⚠️  MPS 에서 DETR 실행 실패 → CPU 로 폴백합니다. ({type(e).__name__}: {e})")
+            detector.to("cpu")
+            _device_state["device"] = torch.device("cpu")
+            _device_state["mps_failed"] = True
+            return _detect_boxes_on(pil_image, _device_state["device"])
+        raise
 
 
 def _resolve_our_class_id(fashion_class_name: str, gender: str):
@@ -232,6 +249,8 @@ def _resolve_our_class_id(fashion_class_name: str, gender: str):
 def process_split(split_df, split_name):
     ok = skip = no_det = 0
     cls_counter = Counter()
+    err_counter = Counter()   # 에러 타입별 카운트 (첫 에러만 상세 출력)
+    first_err_printed = False
     n = len(split_df)
 
     for i, (_, row) in enumerate(split_df.iterrows()):
@@ -261,7 +280,13 @@ def process_split(split_df, split_name):
                 labels.append((cls_id, cx, cy, w, h))
                 cls_counter[cls_name] += 1
         except Exception as e:
-            print(f"  ⚠️  detection 에러 {filename}: {e}")
+            err_counter[type(e).__name__] += 1
+            if not first_err_printed:
+                import traceback
+                print(f"  ⚠️  첫 detection 에러 ({filename}):")
+                print(f"      {type(e).__name__}: {e}")
+                traceback.print_exc()
+                first_err_printed = True
 
         # detection 0개면 fallback (이미지 전체 + CSV primary class)
         if not labels:
@@ -285,6 +310,8 @@ def process_split(split_df, split_name):
 
     print(f"  ✅ {split_name} 완료: {ok}장 (정상 detection={ok-no_det}, fallback={no_det}, skip={skip})")
     print(f"     클래스별 detection 횟수: {dict(cls_counter)}")
+    if err_counter:
+        print(f"     에러 발생: {dict(err_counter)}")
 
 
 print("🔄 이미지 복사 + 패션 사전학습 모델 자동 라벨링 중...")
