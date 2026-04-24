@@ -38,20 +38,23 @@ if platform.system() == "Darwin":
     ssl._create_default_https_context = ssl._create_unverified_context
 
 # ────────────────────────────────────────────────
-# 패션 클래스 → 우리 카테고리 매핑
-# (gender 와 결합해서 우리 9-클래스 생성: 예 "여성" + "상의" → "여성_상의")
-# 매핑되지 않는 클래스(예: hat) 는 skip
+# 패션 모델 클래스 → 우리 카테고리 매핑
+# 우리 9-클래스: ['공용_신발', '남성_상의', '남성_아우터', '남성_하의',
+#               '여성_상의', '여성_아우터', '여성_원피스', '여성_치마', '여성_하의']
+# → 카테고리: 신발(공용), 상의, 아우터, 하의, 원피스, 치마
+# (가방·모자 클래스는 우리 분류에 없으니 skip)
 # ────────────────────────────────────────────────
 FASHION_TO_CATEGORY = {
     # yainage90/fashion-object-detection 표준 클래스
     "top":     "상의",
     "bottom":  "하의",
-    "dress":   "하의",      # 원피스/드레스 → 하의
+    "dress":   "원피스",     # 우리 분류에 별도 카테고리 있음 (여성_원피스)
     "outer":   "아우터",
-    "bag":     "가방",
-    "shoes":   "신발",
+    "skirt":   "치마",       # 우리 분류에 별도 카테고리 있음 (여성_치마)
+    "shoes":   "신발",       # gender 무시, 항상 공용_신발 로 매핑
+    "bag":     None,         # 우리 분류에 없음
     "hat":     None,         # 우리 분류에 없음
-    # DeepFashion2 호환 클래스 (혹시 다른 모델 쓸 때 자동 호환)
+    # DeepFashion2 호환 클래스 (다른 모델 swap 시 자동 호환)
     "short_sleeve_top":      "상의",
     "long_sleeve_top":       "상의",
     "short_sleeve_outwear":  "아우터",
@@ -60,11 +63,10 @@ FASHION_TO_CATEGORY = {
     "sling":                 "상의",
     "shorts":                "하의",
     "trousers":              "하의",
-    "skirt":                 "하의",
-    "short_sleeve_dress":    "상의",
-    "long_sleeve_dress":     "상의",
-    "vest_dress":            "상의",
-    "sling_dress":           "상의",
+    "short_sleeve_dress":    "원피스",
+    "long_sleeve_dress":     "원피스",
+    "vest_dress":            "원피스",
+    "sling_dress":           "원피스",
 }
 
 # 신뢰도 임계값 (낮으면 false positive 늘어남, 높으면 누락)
@@ -91,6 +93,11 @@ for split in ["train", "val"]:
 df = pd.read_csv(CSV_PATH)
 if "class_label" not in df.columns:
     df["class_label"] = df["gender"] + "_" + df["category"]
+
+# CSV 에 gender 컬럼이 없을 수 있음 (class_label 에 이미 합쳐진 경우)
+# class_label = "여성_상의" / "공용_신발" → 첫 토큰을 gender 로 사용
+if "gender" not in df.columns:
+    df["gender"] = df["class_label"].apply(lambda s: str(s).split("_", 1)[0])
 
 categories = sorted(df["class_label"].unique().tolist())
 cat2id = {cat: i for i, cat in enumerate(categories)}
@@ -179,10 +186,17 @@ print()
 
 
 def _resolve_our_class_id(fashion_class_name: str, gender: str):
-    """패션 클래스 + gender → 우리 class_id. 매핑 안 되면 None."""
+    """패션 클래스 + gender → 우리 class_id. 매핑 안 되면 None.
+
+    - 신발: 우리 체계에서 항상 '공용_신발' 하나뿐 → gender 무시
+    - 그 외: '{gender}_{category}' 조합으로 매핑 (예: 여성_상의)
+    - 조합이 우리 9-클래스에 없으면 None (예: 남성_원피스, 남성_치마)
+    """
     category = FASHION_TO_CATEGORY.get(fashion_class_name.lower())
     if category is None:
         return None
+    if category == "신발":
+        return cat2id.get("공용_신발")
     our_class = f"{gender}_{category}"
     return cat2id.get(our_class)
 
